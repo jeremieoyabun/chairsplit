@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 const inputClass =
   "w-full h-[52px] bg-[#FFFFFF] rounded-[14px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[18px] text-[15px] text-[#111113] font-sans placeholder:text-[#9CA3AF] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
@@ -15,6 +16,37 @@ export function Signup({
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSignup = async () => {
+    if (!name || !email || !password) {
+      setError("Please fill in all fields.")
+      return
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.")
+      return
+    }
+    setError(null)
+    setLoading(true)
+
+    const supabase = createClient()
+    const { error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
+    })
+
+    setLoading(false)
+
+    if (authError) {
+      setError(authError.message)
+      return
+    }
+
+    onSignup()
+  }
 
   return (
     <div
@@ -74,12 +106,17 @@ export function Signup({
           Min. 8 characters
         </span>
 
+        {error && (
+          <p className="text-[13px] text-red-500 mt-3 text-center">{error}</p>
+        )}
+
         <button
           type="button"
-          onClick={onSignup}
-          className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[16px] font-semibold mt-7 shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform"
+          onClick={handleSignup}
+          disabled={loading}
+          className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[16px] font-semibold mt-7 shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform disabled:opacity-50"
         >
-          Create account
+          {loading ? "Creating account…" : "Create account"}
         </button>
 
         <div className="mt-6 flex items-center justify-center gap-1.5">

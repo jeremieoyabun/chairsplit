@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { UserRole } from "@/lib/types"
 import { PhoneFrame } from "@/components/chair-split/phone-frame"
 import { Header } from "@/components/chair-split/header"
 import { RevenueCard } from "@/components/chair-split/revenue-card"
@@ -48,6 +50,24 @@ type Screen =
 export default function Page() {
   const [screen, setScreen] = useState<Screen>("login")
 
+  // Restore session on mount — if already logged in, skip login screen
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .single()
+      const role = (profile?.role as UserRole) ?? "barber"
+      setScreen(role === "barber" ? "barber-home" : "home")
+    })
+  }, [])
+
+  const handleLogin = (role: UserRole) => {
+    setScreen(role === "barber" ? "barber-home" : "home")
+  }
+
   // Owner bottom nav
   const handleTabChange = (index: number) => {
     if (index === 0) setScreen("home")
@@ -90,7 +110,7 @@ export default function Page() {
     <PhoneFrame>
       {screen === "login" ? (
         <Login
-          onLogin={() => setScreen("home")}
+          onLogin={handleLogin}
           onSignupPress={() => setScreen("signup")}
         />
       ) : screen === "signup" ? (

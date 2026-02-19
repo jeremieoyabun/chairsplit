@@ -1,8 +1,20 @@
 "use client"
 
 import { Scissors, BarChart3 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export function RoleSelect({ onSelect }: { onSelect: (role: "barber" | "owner") => void }) {
+  const handleSelect = async (role: "barber" | "owner") => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase
+        .from("profiles")
+        .update({ role })
+        .eq("id", user.id)
+    }
+    onSelect(role)
+  }
   return (
     <div className="flex flex-col items-center justify-center h-full bg-[#F0F0F3] px-6">
       {/* Pill badge */}
@@ -29,7 +41,7 @@ export function RoleSelect({ onSelect }: { onSelect: (role: "barber" | "owner") 
         {/* Card 1 - Track my work */}
         <button
           type="button"
-          onClick={() => onSelect("barber")}
+          onClick={() => handleSelect("barber")}
           className="flex-1 rounded-[24px] bg-[#FFFFFF] shadow-[0_4px_24px_rgba(0,0,0,0.08)] py-5 px-4 flex flex-col items-center text-center active:scale-[0.97] transition-transform"
         >
           {/* Replace src with Track.webp */}
@@ -47,7 +59,7 @@ export function RoleSelect({ onSelect }: { onSelect: (role: "barber" | "owner") 
         {/* Card 2 - Run my shop */}
         <button
           type="button"
-          onClick={() => onSelect("owner")}
+          onClick={() => handleSelect("owner")}
           className="flex-1 rounded-[24px] bg-[#FFFFFF] shadow-[0_4px_24px_rgba(0,0,0,0.08)] py-5 px-4 flex flex-col items-center text-center active:scale-[0.97] transition-transform"
         >
           {/* Replace src with Run.webp */}

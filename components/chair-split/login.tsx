@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { UserRole } from "@/lib/types"
 
 const inputClass =
   "w-full h-[52px] bg-[#FFFFFF] rounded-[14px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[18px] text-[15px] text-[#111113] font-sans placeholder:text-[#9CA3AF] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
@@ -9,11 +11,40 @@ export function Login({
   onLogin,
   onSignupPress,
 }: {
-  onLogin: () => void
+  onLogin: (role: UserRole) => void
   onSignupPress?: () => void
 }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError("Please enter your email and password.")
+      return
+    }
+    setError(null)
+    setLoading(true)
+
+    const supabase = createClient()
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (authError) {
+      setError(authError.message)
+      setLoading(false)
+      return
+    }
+
+    // Fetch profile to get role
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .single()
+
+    setLoading(false)
+    onLogin((profile?.role as UserRole) ?? "barber")
+  }
 
   return (
     <div
@@ -57,14 +88,20 @@ export function Login({
           onChange={(e) => setPassword(e.target.value)}
           placeholder={"••••••••"}
           className={inputClass}
+          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
         />
+
+        {error && (
+          <p className="text-[13px] text-red-500 mt-3 text-center">{error}</p>
+        )}
 
         <button
           type="button"
-          onClick={onLogin}
-          className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[16px] font-semibold mt-7 shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform"
+          onClick={handleLogin}
+          disabled={loading}
+          className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[16px] font-semibold mt-7 shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform disabled:opacity-50"
         >
-          Sign in
+          {loading ? "Signing in…" : "Sign in"}
         </button>
 
         <button
