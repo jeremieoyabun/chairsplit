@@ -1,8 +1,8 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,29 +13,33 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
+          // On ne touche pas à request.cookies, on écrit uniquement sur la response
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
         },
       },
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase.auth.getUser()
 
-  // Redirect unauthenticated users to the root (which shows Login)
-  const publicPaths = ['/']
-  const isPublicPath = publicPaths.some(path => request.nextUrl.pathname === path)
+  // Si les env vars manquent en prod, on évite de faire crash
+  if (error && (error as any).message?.toLowerCase?.().includes("invalid")) {
+    return response
+  }
+
+  const user = data?.user
+
+  const publicPaths = ["/"]
+  const isPublicPath = publicPaths.includes(request.nextUrl.pathname)
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = "/"
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  return response
 }
