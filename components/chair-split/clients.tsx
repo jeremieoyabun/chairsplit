@@ -1,35 +1,120 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, Search, ChevronRight } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-type Client = {
-  initials: string
+type DbClient = {
+  id: string
   name: string
-  visits: number
-  lastVisit: string
-  color: string
+  phone: string | null
+  email: string | null
+  notes: string | null
 }
 
-const clients: Client[] = [
-  { initials: "JP", name: "Jean-Pierre D.", visits: 14, lastVisit: "Feb 9", color: "#7C3AED" },
-  { initials: "LM", name: "Lucas M.", visits: 9, lastVisit: "Feb 8", color: "#0D9488" },
-  { initials: "TB", name: "Tom B.", visits: 7, lastVisit: "Feb 7", color: "#4F46E5" },
-  { initials: "OR", name: "Oliver R.", visits: 5, lastVisit: "Feb 6", color: "#EC4899" },
-  { initials: "MS", name: "Marc S.", visits: 3, lastVisit: "Feb 5", color: "#64748B" },
-  { initials: "NP", name: "Nico P.", visits: 2, lastVisit: "Feb 4", color: "#06B6D4" },
-]
+type DisplayClient = DbClient & { initials: string; color: string }
+
+const COLORS = ["#7C3AED", "#0D9488", "#4F46E5", "#EC4899", "#64748B", "#06B6D4", "#3B82F6", "#F59E0B"]
+
+function colorFor(name: string) {
+  let h = 0
+  for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h)
+  return COLORS[Math.abs(h) % COLORS.length]
+}
+
+function getInitials(name: string) {
+  return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
+}
+
+const inputClass =
+  "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
 export function Clients({ onBack }: { onBack: () => void }) {
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [clients, setClients] = useState<DisplayClient[]>([])
   const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(true)
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [newName, setNewName] = useState("")
   const [newPhone, setNewPhone] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newNotes, setNewNotes] = useState("")
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const loadClients = async (sid: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, name, phone, email, notes")
+      .eq("shop_id", sid)
+      .order("name", { ascending: true })
+
+    if (error) { console.error("[Clients] load:", error.message); return }
+    setClients((data ?? []).map((c: DbClient) => ({
+      ...c,
+      initials: getInitials(c.name),
+      color: colorFor(c.name),
+    })))
+  }
+
+  useEffect(() => {
+    const init = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+      setShopId(profile.shop_id)
+      await loadClients(profile.shop_id)
+      setLoading(false)
+    }
+    init()
+  }, [])
+
+  const handleAddClient = async () => {
+    if (!newName.trim()) { setAddError("Name is required."); return }
+    if (!shopId) return
+    setAdding(true)
+    setAddError(null)
+
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({
+        shop_id: shopId,
+        name: newName.trim(),
+        phone: newPhone.trim() || null,
+        email: newEmail.trim() || null,
+        notes: newNotes.trim() || null,
+      })
+      .select("id, name, phone, email, notes")
+      .single()
+
+    setAdding(false)
+    if (error) {
+      console.error("[Clients] add:", error.message)
+      setAddError(error.message)
+      return
+    }
+    if (data) {
+      setClients((prev) => [
+        { ...data, initials: getInitials(data.name), color: colorFor(data.name) },
+        ...prev,
+      ].sort((a, b) => a.name.localeCompare(b.name)))
+    }
+    setNewName(""); setNewPhone(""); setNewEmail(""); setNewNotes("")
+    setShowAddSheet(false)
+  }
 
   const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(query.toLowerCase()),
+    c.name.toLowerCase().includes(query.toLowerCase())
   )
 
   return (
@@ -73,17 +158,17 @@ export function Clients({ onBack }: { onBack: () => void }) {
       {/* Stats */}
       <div className="px-5 mt-4">
         <span className="text-[13px] text-[#9CA3AF]">
-          {filtered.length} client{filtered.length !== 1 ? "s" : ""}
+          {loading ? "Loading…" : `${filtered.length} client${filtered.length !== 1 ? "s" : ""}`}
         </span>
       </div>
 
       {/* Client list */}
       <div className="flex-1 overflow-y-auto scrollbar-hide pb-10">
-        {filtered.length > 0 ? (
+        {!loading && filtered.length > 0 ? (
           <div className="mx-5 mt-2.5 rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
             {filtered.map((client) => (
               <div
-                key={client.initials + client.name}
+                key={client.id}
                 className="flex items-center gap-3 px-[18px] py-4 border-b border-[#F8F8FA] last:border-b-0 cursor-pointer active:bg-[#FAFAFA] transition-colors"
               >
                 <div
@@ -98,22 +183,24 @@ export function Clients({ onBack }: { onBack: () => void }) {
                   <span className="text-[15px] font-semibold text-[#111113] block leading-tight">
                     {client.name}
                   </span>
-                  <span className="text-[12px] text-[#9CA3AF] block mt-0.5">
-                    {client.visits} visits {"\u00B7"} Last: {client.lastVisit}
-                  </span>
+                  {client.phone && (
+                    <span className="text-[12px] text-[#9CA3AF] block mt-0.5">
+                      {client.phone}
+                    </span>
+                  )}
                 </div>
                 <ChevronRight className="w-4 h-4 text-[#D1D5DB] shrink-0" />
               </div>
             ))}
           </div>
-        ) : (
+        ) : !loading ? (
           <div className="flex flex-col items-center justify-center mt-20">
             <Search className="w-12 h-12 text-[#D1D5DB]" />
             <span className="text-[14px] text-[#9CA3AF] mt-3">
-              No clients found
+              {clients.length === 0 ? "No clients yet" : "No clients found"}
             </span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Add Client Bottom Sheet */}
@@ -140,14 +227,14 @@ export function Clients({ onBack }: { onBack: () => void }) {
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-                  NAME
+                  NAME *
                 </label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Full name"
-                  className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+                  className={inputClass}
                 />
               </div>
 
@@ -160,7 +247,7 @@ export function Clients({ onBack }: { onBack: () => void }) {
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
                   placeholder="+66..."
-                  className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+                  className={inputClass}
                 />
               </div>
 
@@ -173,7 +260,7 @@ export function Clients({ onBack }: { onBack: () => void }) {
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="email@example.com"
-                  className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+                  className={inputClass}
                 />
               </div>
 
@@ -192,12 +279,17 @@ export function Clients({ onBack }: { onBack: () => void }) {
               </div>
             </div>
 
+            {addError && (
+              <p className="text-[13px] text-red-500 mt-3 text-center">{addError}</p>
+            )}
+
             <button
               type="button"
-              onClick={() => setShowAddSheet(false)}
-              className="w-full h-[52px] rounded-[16px] bg-[#1A1A1A] text-[15px] font-semibold text-[#FFFFFF] mt-5 active:scale-[0.98] transition-transform shadow-[0_4px_16px_rgba(0,0,0,0.12)]"
+              onClick={handleAddClient}
+              disabled={adding}
+              className="w-full h-[52px] rounded-[16px] bg-[#1A1A1A] text-[15px] font-semibold text-[#FFFFFF] mt-5 active:scale-[0.98] transition-transform shadow-[0_4px_16px_rgba(0,0,0,0.12)] disabled:opacity-50"
             >
-              Add client
+              {adding ? "Adding…" : "Add client"}
             </button>
           </div>
         </>

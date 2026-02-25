@@ -1,8 +1,22 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Bell, ChevronRight } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { AgendaView } from "./agenda-view"
 
-type Visit = {
+type DbVisit = {
+  id: string
+  total_amount: number
+  commission_amount: number
+  commission_rate: number
+  status: string
+  visited_at: string
+  clients: { name: string } | null
+  visit_services: { service_name: string }[]
+}
+
+type DisplayVisit = {
   client: string
   services: string
   amount: string
@@ -10,22 +24,31 @@ type Visit = {
   status: "validated" | "draft"
 }
 
-const visits: Visit[] = [
-  { client: "Jean-Pierre D.", services: "Haircut/Fade, Beard Trim", amount: "700", time: "09:15", status: "validated" },
-  { client: "Walk-in", services: "Haircut/Fade, Shampoo", amount: "700", time: "11:30", status: "draft" },
-  { client: "Lucas M.", services: "Facial Steamer, Face Mask", amount: "500", time: "15:00", status: "validated" },
-]
-
 const statusConfig = {
   validated: { label: "Validated", bg: "#ECFDF5", text: "#16A34A" },
   draft: { label: "Draft", bg: "#FFFBEB", text: "#D97706" },
 }
 
-const miniKpis = [
-  { label: "VISITS", value: "5" },
-  { label: "COMMISSION", value: "30%" },
-  { label: "AVG. TICKET", value: "410", hasBaht: true },
-]
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((p) => p[0] ?? "")
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+function fmt(n: number) {
+  return Math.round(n).toLocaleString("fr-FR")
+}
+
+function todayRange() {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
 
 export function BarberHome({
   onSettingsPress,
@@ -38,6 +61,83 @@ export function BarberHome({
   onNewVisitPress?: () => void
   onViewAllPress?: () => void
 }) {
+  const [fullName, setFullName] = useState("")
+  const [visits, setVisits] = useState<DisplayVisit[]>([])
+  const [earnings, setEarnings] = useState(0)
+  const [revenue, setRevenue] = useState(0)
+  const [visitCount, setVisitCount] = useState(0)
+  const [commissionPct, setCommissionPct] = useState<number | null>(null)
+  const [avgTicket, setAvgTicket] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single()
+
+      if (profile?.full_name) setFullName(profile.full_name)
+
+      const { start, end } = todayRange()
+      const { data: raw, error } = await supabase
+        .from("visits")
+        .select("id, total_amount, commission_amount, commission_rate, status, visited_at, clients(name), visit_services(service_name)")
+        .eq("barber_id", user.id)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
+        .order("visited_at", { ascending: true })
+
+      if (error) { console.error("[BarberHome] visits:", error.message); setLoading(false); return }
+
+      const rows = (raw ?? []) as DbVisit[]
+      const validated = rows.filter((v) => v.status === "validated")
+      const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
+      const totalCommission = validated.reduce((s, v) => s + v.commission_amount, 0)
+      const avgRate = validated.length > 0
+        ? validated.reduce((s, v) => s + v.commission_rate, 0) / validated.length
+        : null
+      const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
+
+      setRevenue(totalRevenue)
+      setEarnings(totalCommission)
+      setVisitCount(rows.length)
+      setCommissionPct(avgRate !== null ? Math.round(avgRate) : null)
+      setAvgTicket(Math.round(avgTkt))
+
+      const displayVisits: DisplayVisit[] = rows
+        .filter((v) => v.status !== "cancelled")
+        .map((v) => ({
+          client: v.clients?.name ?? "Walk-in",
+          services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+          amount: fmt(v.total_amount),
+          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          status: v.status as "validated" | "draft",
+        }))
+
+      setVisits(displayVisits)
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const initials = fullName ? getInitials(fullName) : "—"
+  const firstName = fullName.split(" ")[0] || "—"
+  const today = new Date()
+  const dateLabel = today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  const dayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+
+  const miniKpis = [
+    { label: "VISITS", value: loading ? "—" : String(visitCount) },
+    { label: "COMMISSION", value: loading ? "—" : commissionPct !== null ? `${commissionPct}%` : "—" },
+    { label: "AVG. TICKET", value: loading ? "—" : fmt(avgTicket), hasBaht: !loading && avgTicket > 0 },
+  ]
+
   return (
     <div className="flex flex-col min-h-full pb-28">
       {/* Header */}
@@ -49,14 +149,14 @@ export function BarberHome({
             className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0 active:scale-95 transition-transform"
             aria-label="Profile settings"
           >
-            <span className="text-[14px] font-semibold text-[#FFFFFF]">KB</span>
+            <span className="text-[14px] font-semibold text-[#FFFFFF]">{initials}</span>
           </button>
           <div>
             <span className="text-[22px] font-bold text-[#111113] leading-tight block">
-              Hey, Karim
+              Hey, {firstName}
             </span>
             <span className="text-[13px] text-[#9CA3AF] leading-tight block">
-              Monday, Feb 10
+              {dayLabel}
             </span>
           </div>
         </div>
@@ -78,20 +178,18 @@ export function BarberHome({
             <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#6B7280]">
               MY EARNINGS TODAY
             </span>
-            <span className="text-[12px] text-[#6B7280]">Feb 10, 2026</span>
+            <span className="text-[12px] text-[#6B7280]">{dateLabel}</span>
           </div>
 
           <div className="mt-2 flex items-baseline">
             <span className="text-[44px] font-bold text-[#FFFFFF] leading-none tracking-tight">
-              1 230
+              {loading ? "—" : fmt(earnings)}
             </span>
-            <span className="text-[24px] text-[#6B7280] ml-1.5 font-normal">
-              {"\u0E3F"}
-            </span>
+            <span className="text-[24px] text-[#6B7280] ml-1.5 font-normal">{"\u0E3F"}</span>
           </div>
 
           <span className="text-[13px] text-[#6B7280] block mt-1">
-            {"from 2 050 \u0E3F revenue"}
+            {loading ? "" : `from ${fmt(revenue)} \u0E3F revenue`}
           </span>
 
           <div className="mt-5 flex gap-2">
@@ -108,9 +206,7 @@ export function BarberHome({
                     {kpi.value}
                   </span>
                   {kpi.hasBaht && (
-                    <span className="text-[14px] text-[#6B7280] ml-0.5">
-                      {"\u0E3F"}
-                    </span>
+                    <span className="text-[14px] text-[#6B7280] ml-0.5">{"\u0E3F"}</span>
                   )}
                 </div>
               </div>
@@ -135,19 +231,23 @@ export function BarberHome({
               <path d="M14.8 14.8 20 20"/>
             </svg>
           </div>
-          <span className="text-[18px] font-semibold text-[#FFFFFF] flex-1 text-left">
-            New Visit
-          </span>
+          <span className="text-[18px] font-semibold text-[#FFFFFF] flex-1 text-left">New Visit</span>
           <ChevronRight className="w-5 h-5 text-[#6B7280]" />
         </button>
+      </div>
+
+      {/* Agenda */}
+      <div className="px-5 mt-6">
+        <h2 className="text-[18px] font-semibold text-[#111113] mb-3.5">
+          {"Today\u2019s appointments"}
+        </h2>
+        <AgendaView date={new Date().toISOString().split("T")[0]} compact />
       </div>
 
       {/* My Visits Today */}
       <div className="px-5 mt-7">
         <div className="flex items-center justify-between mb-3.5">
-          <h2 className="text-[18px] font-semibold text-[#111113]">
-            My visits
-          </h2>
+          <h2 className="text-[18px] font-semibold text-[#111113]">My visits</h2>
           <button
             type="button"
             onClick={onViewAllPress}
@@ -157,48 +257,50 @@ export function BarberHome({
           </button>
         </div>
 
-        <div className="flex flex-col gap-2.5">
-          {visits.map((visit, i) => {
-            const badge = statusConfig[visit.status]
-            return (
-              <div
-                key={`${visit.client}-${visit.time}-${i}`}
-                className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform cursor-pointer"
-              >
-                <div className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">
-                  <span className="text-[14px] font-semibold text-[#FFFFFF]">KB</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[15px] font-semibold text-[#111113] leading-tight block">
-                    {visit.client}
-                  </span>
-                  <span className="text-[13px] text-[#9CA3AF] block truncate mt-0.5">
-                    {visit.services}
-                  </span>
-                </div>
-                <div className="text-right shrink-0 flex flex-col items-end">
-                  <div className="flex items-baseline justify-end">
-                    <span className="text-[17px] font-bold text-[#111113] leading-tight">
-                      {visit.amount}
+        {!loading && visits.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10">
+            <span className="text-[14px] text-[#9CA3AF]">No visits today yet</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {visits.map((visit, i) => {
+              const badge = statusConfig[visit.status]
+              return (
+                <div
+                  key={`${visit.client}-${visit.time}-${i}`}
+                  className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">
+                    <span className="text-[14px] font-semibold text-[#FFFFFF]">{initials}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[15px] font-semibold text-[#111113] leading-tight block">
+                      {visit.client}
                     </span>
-                    <span className="text-[13px] text-[#9CA3AF] ml-0.5">
-                      {"\u0E3F"}
+                    <span className="text-[13px] text-[#9CA3AF] block truncate mt-0.5">
+                      {visit.services}
                     </span>
                   </div>
-                  <span className="text-[11px] text-[#D1D5DB] block mt-0.5">
-                    {visit.time}
-                  </span>
-                  <span
-                    className="text-[9px] font-semibold px-2 py-0.5 rounded-full mt-1 leading-none"
-                    style={{ backgroundColor: badge.bg, color: badge.text }}
-                  >
-                    {badge.label}
-                  </span>
+                  <div className="text-right shrink-0 flex flex-col items-end">
+                    <div className="flex items-baseline justify-end">
+                      <span className="text-[17px] font-bold text-[#111113] leading-tight">
+                        {visit.amount}
+                      </span>
+                      <span className="text-[13px] text-[#9CA3AF] ml-0.5">{"\u0E3F"}</span>
+                    </div>
+                    <span className="text-[11px] text-[#D1D5DB] block mt-0.5">{visit.time}</span>
+                    <span
+                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full mt-1 leading-none"
+                      style={{ backgroundColor: badge.bg, color: badge.text }}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

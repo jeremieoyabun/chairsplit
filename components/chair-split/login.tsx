@@ -11,7 +11,7 @@ export function Login({
   onLogin,
   onSignupPress,
 }: {
-  onLogin: (role: UserRole) => void
+  onLogin: (role: UserRole, shopId: string | null) => void
   onSignupPress?: () => void
 }) {
   const [email, setEmail] = useState("")
@@ -36,14 +36,47 @@ export function Login({
       return
     }
 
-    // Fetch profile to get role
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Check for a pending invitation for this email and auto-accept it
+    const { data: invitation } = await supabase
+      .from("invitations")
+      .select("shop_id, role, commission_rate")
+      .eq("email", user!.email!.toLowerCase())
+      .is("accepted_at", null)
+      .maybeSingle()
+
+    if (invitation?.shop_id) {
+      await supabase
+        .from("profiles")
+        .update({ shop_id: invitation.shop_id, role: invitation.role })
+        .eq("id", user!.id)
+      await supabase
+        .from("invitations")
+        .update({ accepted_at: new Date().toISOString() })
+        .eq("shop_id", invitation.shop_id)
+        .eq("email", user!.email!.toLowerCase())
+      if (invitation.commission_rate) {
+        await supabase.from("commission_rules").insert({
+          shop_id: invitation.shop_id,
+          barber_id: user!.id,
+          rate: invitation.commission_rate,
+        })
+      }
+      setLoading(false)
+      onLogin(invitation.role as UserRole, invitation.shop_id)
+      return
+    }
+
+    // Normal flow: fetch profile to get role and shop_id
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, shop_id")
+      .eq("id", user!.id)
       .single()
 
     setLoading(false)
-    onLogin((profile?.role as UserRole) ?? "barber")
+    onLogin((profile?.role as UserRole) ?? "barber", profile?.shop_id ?? null)
   }
 
   return (

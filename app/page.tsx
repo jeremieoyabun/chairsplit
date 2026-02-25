@@ -36,15 +36,18 @@ import { BarberHistory } from "@/components/chair-split/barber-history"
 import { BarberStats } from "@/components/chair-split/barber-stats"
 import { BarberSettings } from "@/components/chair-split/barber-settings"
 import { BarberBottomNav } from "@/components/chair-split/barber-bottom-nav"
+import { SetupShop } from "@/components/chair-split/setup-shop"
+import { Agenda } from "@/components/chair-split/agenda"
 
 type Screen =
-  | "login" | "signup" | "role-select"
+  | "login" | "signup" | "role-select" | "setup-shop"
   | "home" | "notifications" | "profile"
   | "new-visit" | "visit-detail" | "visit-draft"
   | "history"
   | "team" | "barber-detail" | "add-barber"
   | "accounting" | "expenses" | "statements" | "payslips"
   | "settings" | "service-catalog" | "commissions" | "clients" | "subscription" | "shop-profile"
+  | "agenda"
   | "barber-home" | "barber-new-visit" | "barber-history" | "barber-stats" | "barber-settings"
 
 export default function Page() {
@@ -55,17 +58,27 @@ export default function Page() {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, shop_id")
+        .eq("id", user.id)
         .single()
       const role = (profile?.role as UserRole) ?? "barber"
-      setScreen(role === "barber" ? "barber-home" : "home")
+      if (role === "barber") { setScreen("barber-home"); return }
+      setScreen(profile?.shop_id ? "home" : "setup-shop")
     })
   }, [])
 
-  const handleLogin = (role: UserRole) => {
-    setScreen(role === "barber" ? "barber-home" : "home")
+  const handleLogin = (role: UserRole, shopId: string | null) => {
+    if (role === "barber") { setScreen("barber-home"); return }
+    setScreen(shopId ? "home" : "setup-shop")
+  }
+
+  const handleSignOut = async () => {
+    await createClient().auth.signOut()
+    setScreen("login")
   }
 
   // Owner bottom nav
@@ -93,11 +106,13 @@ export default function Page() {
     if (index === 0) setScreen("barber-home")
     else if (index === 1) setScreen("barber-history")
     else if (index === 2) setScreen("barber-stats")
+    else if (index === 3) setScreen("barber-settings")
   }
 
   const barberActiveTab =
     screen === "barber-history" ? 1 :
     screen === "barber-stats" ? 2 :
+    screen === "barber-settings" ? 3 :
     0
 
   const barberNavProps = {
@@ -121,8 +136,10 @@ export default function Page() {
       ) : screen === "role-select" ? (
         <RoleSelect onSelect={(role) => {
           if (role === "barber") setScreen("barber-home")
-          else setScreen("home")
+          else setScreen("setup-shop")
         }} />
+      ) : screen === "setup-shop" ? (
+        <SetupShop onComplete={() => setScreen("home")} />
       ) : screen === "home" ? (
         <>
           <Header
@@ -134,6 +151,7 @@ export default function Page() {
             onReportsPress={() => setScreen("statements")}
             onPayoutsPress={() => setScreen("payslips")}
             onClientsPress={() => setScreen("clients")}
+            onAgendaPress={() => setScreen("agenda")}
           />
           <RecentVisits
             onVisitPress={() => setScreen("visit-detail")}
@@ -169,7 +187,10 @@ export default function Page() {
           <BottomNav {...navProps} />
         </>
       ) : screen === "add-barber" ? (
-        <AddBarber onBack={() => setScreen("team")} />
+        <AddBarber
+          onBack={() => setScreen("team")}
+          onUpgradePress={() => setScreen("subscription")}
+        />
       ) : screen === "settings" ? (
         <Services
           onBack={() => setScreen("home")}
@@ -179,7 +200,7 @@ export default function Page() {
           onSubscriptionPress={() => setScreen("subscription")}
           onShopProfilePress={() => setScreen("shop-profile")}
           onProfilePress={() => setScreen("profile")}
-          onSignOut={() => setScreen("login")}
+          onSignOut={handleSignOut}
         />
       ) : screen === "service-catalog" ? (
         <ServiceCatalog onBack={() => setScreen("settings")} />
@@ -203,6 +224,8 @@ export default function Page() {
         <NewVisit onBack={() => setScreen("home")} />
       ) : screen === "visit-detail" ? (
         <VisitDetail onBack={() => setScreen("home")} status="validated" />
+      ) : screen === "agenda" ? (
+        <Agenda onBack={() => setScreen("home")} />
 
       /* ── Barber Interface ── */
       ) : screen === "barber-home" ? (
@@ -229,7 +252,7 @@ export default function Page() {
       ) : screen === "barber-settings" ? (
         <BarberSettings
           onBack={() => setScreen("barber-home")}
-          onSignOut={() => setScreen("login")}
+          onSignOut={handleSignOut}
         />
       ) : (
         <VisitDetail onBack={() => setScreen("home")} status="draft" />

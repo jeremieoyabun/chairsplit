@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus } from "lucide-react"
+import { Plus, Settings } from "lucide-react"
 
 function TodayIcon({ color }: { color: string }) {
   return (
@@ -36,6 +36,7 @@ const leftTabs = [
 
 const rightTabs = [
   { Icon: StatsIcon, label: "My Stats", index: 2 },
+  { label: "Settings", index: 3, isSettings: true },
 ]
 
 export function BarberBottomNav({
@@ -89,11 +90,33 @@ export function BarberBottomNav({
         {/* Spacer for center button */}
         <div className="w-[68px]" />
 
-        {/* Right tab */}
+        {/* Right tabs */}
         <div className="flex-1 flex items-center justify-around">
           {rightTabs.map((tab) => {
             const isActive = tab.index === activeTab
             const color = isActive ? "#FFFFFF" : "#6B7280"
+            if ("isSettings" in tab && tab.isSettings) {
+              return (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => onTabChange?.(tab.index)}
+                  className="flex flex-col items-center justify-center w-14 transition-all duration-200"
+                  aria-label={tab.label}
+                >
+                  <Settings
+                    className="w-[26px] h-[26px]"
+                    style={{ color }}
+                    strokeWidth={1.8}
+                  />
+                  {isActive && (
+                    <span className="text-[9px] font-medium text-[#FFFFFF] mt-[4px] whitespace-nowrap">
+                      {tab.label}
+                    </span>
+                  )}
+                </button>
+              )
+            }
             return (
               <button
                 key={tab.label}

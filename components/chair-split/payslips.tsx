@@ -1,52 +1,150 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, Download } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-type Payslip = {
-  initials: string
+type PayslipData = {
+  barberId: string
   name: string
+  initials: string
   color: string
-  status: "approved" | "pending"
   visits: number
-  ca: string
-  commission: string
+  revenue: number
+  commission: number
+  rate: number
 }
 
-const months = ["Jan 2026", "F\u00E9v 2026"]
+const COLORS = ["#3B82F6", "#16A34A", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316"]
 
-const payslips: Payslip[] = [
-  {
-    initials: "KB",
-    name: "Karim B.",
-    color: "#3B82F6",
-    status: "approved",
-    visits: 42,
-    ca: "63 000",
-    commission: "18 900",
-  },
-  {
-    initials: "AM",
-    name: "Ali M.",
-    color: "#16A34A",
-    status: "approved",
-    visits: 35,
-    ca: "49 200",
-    commission: "12 300",
-  },
-  {
-    initials: "YR",
-    name: "Youssef R.",
-    color: "#F59E0B",
-    status: "pending",
-    visits: 28,
-    ca: "35 000",
-    commission: "10 500",
-  },
-]
+function colorFor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff
+  return COLORS[Math.abs(hash) % COLORS.length]
+}
+
+function getInitials(name: string | null): string {
+  if (!name) return "?"
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function fmt(n: number): string {
+  return Math.round(n).toLocaleString("fr-FR")
+}
+
+function getMonthOptions() {
+  const options: { label: string; value: string }[] = []
+  const now = new Date()
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    options.push({
+      label: d.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+    })
+  }
+  return options
+}
+
+function monthRange(monthValue: string) {
+  const [y, m] = monthValue.split("-").map(Number)
+  const start = new Date(y, m - 1, 1)
+  const end = new Date(y, m, 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
 
 export function Payslips({ onBack }: { onBack: () => void }) {
+  const months = getMonthOptions()
   const [activeMonth, setActiveMonth] = useState(0)
+  const [payslips, setPayslips] = useState<PayslipData[]>([])
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+      setShopId(profile.shop_id)
+
+      // Barbers
+      const { data: barbers } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("shop_id", profile.shop_id)
+        .eq("role", "barber")
+
+      if (!barbers?.length) { setLoading(false); return }
+
+      // Commission rules
+      const { data: rules } = await supabase
+        .from("commission_rules")
+        .select("barber_id, rate")
+        .eq("shop_id", profile.shop_id)
+
+      const ruleMap: Record<string, number> = {}
+      for (const r of rules ?? []) {
+        if (r.barber_id) ruleMap[r.barber_id] = r.rate
+      }
+      const globalRate = rules?.find(r => !r.barber_id)?.rate ?? 30
+
+      // Visits for the selected month
+      const { start, end } = monthRange(months[activeMonth].value)
+      const { data: visits } = await supabase
+        .from("visits")
+        .select("barber_id, total_amount")
+        .eq("shop_id", profile.shop_id)
+        .eq("status", "validated")
+        .gte("created_at", start)
+        .lt("created_at", end)
+
+      // Aggregate per barber
+      const statsMap: Record<string, { revenue: number; visits: number }> = {}
+      for (const v of visits ?? []) {
+        if (!statsMap[v.barber_id]) statsMap[v.barber_id] = { revenue: 0, visits: 0 }
+        statsMap[v.barber_id].revenue += v.total_amount ?? 0
+        statsMap[v.barber_id].visits += 1
+      }
+
+      const rows: PayslipData[] = barbers.map(b => {
+        const stats = statsMap[b.id] ?? { revenue: 0, visits: 0 }
+        const rate = ruleMap[b.id] ?? globalRate
+        return {
+          barberId: b.id,
+          name: b.full_name ?? "—",
+          initials: getInitials(b.full_name),
+          color: colorFor(b.id),
+          visits: stats.visits,
+          revenue: stats.revenue,
+          commission: Math.round(stats.revenue * rate / 100),
+          rate,
+        }
+      })
+
+      setPayslips(rows)
+      setLoading(false)
+    }
+    load()
+  }, [activeMonth])
+
+  const handleExport = async () => {
+    if (!shopId) return
+    setExporting(true)
+    const month = months[activeMonth].value
+    window.open(`/api/payslips/export?month=${month}&shopId=${shopId}`, "_blank")
+    setExporting(false)
+  }
 
   return (
     <div className="flex flex-col min-h-full pb-10">
@@ -67,19 +165,19 @@ export function Payslips({ onBack }: { onBack: () => void }) {
 
       {/* Month Segment */}
       <div className="mx-5 mt-4">
-        <div className="flex rounded-[12px] bg-[#F3F4F6] p-1">
+        <div className="flex rounded-[12px] bg-[#F3F4F6] p-1 gap-1">
           {months.map((month, i) => (
             <button
-              key={month}
+              key={month.value}
               type="button"
               onClick={() => setActiveMonth(i)}
-              className={`flex-1 text-center py-2.5 rounded-[10px] text-[13px] font-semibold transition-all ${
+              className={`flex-1 text-center py-2.5 rounded-[10px] text-[12px] font-semibold transition-all ${
                 activeMonth === i
                   ? "bg-[#FFFFFF] text-[#111113] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                   : "text-[#9CA3AF]"
               }`}
             >
-              {month}
+              {month.label}
             </button>
           ))}
         </div>
@@ -87,71 +185,91 @@ export function Payslips({ onBack }: { onBack: () => void }) {
 
       {/* Payslip Cards */}
       <div className="px-5 mt-5 flex flex-col gap-3.5">
-        {payslips.map((p) => (
-          <div
-            key={p.initials}
-            className="rounded-[20px] bg-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.05)] px-[22px] py-[22px]"
-          >
-            {/* Header: avatar + name + badge */}
-            <div className="flex items-center gap-3.5">
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: p.color }}
-              >
-                <span className="text-[14px] font-semibold text-[#FFFFFF]">
-                  {p.initials}
-                </span>
-              </div>
-              <span className="text-[17px] font-semibold text-[#111113] flex-1">
-                {p.name}
-              </span>
-              <span
-                className={`text-[11px] font-semibold px-3.5 py-[5px] rounded-full ${
-                  p.status === "approved"
-                    ? "bg-[#ECFDF5] text-[#16A34A]"
-                    : "bg-[#FFFBEB] text-[#D97706]"
-                }`}
-              >
-                {p.status === "approved" ? "Approuv\u00E9" : "En attente"}
-              </span>
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-[#F5F5F7] my-4" />
-
-            {/* Stats */}
-            <span className="text-[13px] text-[#9CA3AF]">
-              {p.visits} visites {"\u00B7"} CA {p.ca} {"\u0E3F"}
-            </span>
-
-            {/* Commission highlight */}
-            <div className="mt-3.5 rounded-[14px] bg-[#ECFDF5] py-4 px-4 text-center">
-              <span className="text-[12px] font-medium text-[#16A34A] block">
-                Commission due
-              </span>
-              <div className="flex items-baseline justify-center mt-1">
-                <span className="text-[28px] font-bold text-[#16A34A] leading-none">
-                  {p.commission}
-                </span>
-                <span className="text-[16px] text-[#16A34A] ml-1">
-                  {"\u0E3F"}
-                </span>
-              </div>
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <span className="text-[14px] text-[#9CA3AF]">Loading…</span>
           </div>
-        ))}
+        ) : payslips.length === 0 ? (
+          <div className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-8 flex flex-col items-center gap-2">
+            <p className="text-[15px] font-semibold text-[#111113]">No data</p>
+            <p className="text-[13px] text-[#9CA3AF] text-center">
+              No validated visits for {months[activeMonth].label}.
+            </p>
+          </div>
+        ) : (
+          payslips.map((p) => (
+            <div
+              key={p.barberId}
+              className="rounded-[20px] bg-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.05)] px-[22px] py-[22px]"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3.5">
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: p.color }}
+                >
+                  <span className="text-[14px] font-semibold text-[#FFFFFF]">{p.initials}</span>
+                </div>
+                <span className="text-[17px] font-semibold text-[#111113] flex-1">{p.name}</span>
+                <span className="text-[11px] font-semibold px-3.5 py-[5px] rounded-full bg-[#ECFDF5] text-[#16A34A]">
+                  {months[activeMonth].label}
+                </span>
+              </div>
+
+              <div className="h-px bg-[#F5F5F7] my-4" />
+
+              <div className="flex gap-4 text-center">
+                <div className="flex-1">
+                  <span className="text-[11px] text-[#9CA3AF] block">Visits</span>
+                  <span className="text-[18px] font-bold text-[#111113]">{p.visits}</span>
+                </div>
+                <div className="flex-1">
+                  <span className="text-[11px] text-[#9CA3AF] block">Revenue</span>
+                  <div className="flex items-baseline justify-center">
+                    <span className="text-[18px] font-bold text-[#111113]">{fmt(p.revenue)}</span>
+                    <span className="text-[12px] text-[#9CA3AF] ml-0.5">฿</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <span className="text-[11px] text-[#9CA3AF] block">Rate</span>
+                  <span className="text-[18px] font-bold text-[#111113]">{p.rate}%</span>
+                </div>
+              </div>
+
+              {/* Commission highlight */}
+              <div className="mt-4 rounded-[14px] bg-[#ECFDF5] py-4 px-4 text-center">
+                <span className="text-[12px] font-medium text-[#16A34A] block">
+                  Commission due
+                </span>
+                <div className="flex items-baseline justify-center mt-1">
+                  <span className="text-[28px] font-bold text-[#16A34A] leading-none">
+                    {fmt(p.commission)}
+                  </span>
+                  <span className="text-[16px] text-[#16A34A] ml-1">฿</span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* CTA */}
-      <div className="px-5 mt-5">
-        <button
-          type="button"
-          className="w-full h-[52px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[15px] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.18)] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-        >
-          <Download className="w-[18px] h-[18px]" strokeWidth={2} />
-          Exporter toutes les fiches (ZIP)
-        </button>
-      </div>
+      {!loading && payslips.length > 0 && (
+        <div className="px-5 mt-5">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="w-full h-[52px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[15px] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.18)] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Download className="w-[18px] h-[18px]" strokeWidth={2} />
+            {exporting ? "Opening…" : "Exporter toutes les fiches (PDF)"}
+          </button>
+          <p className="text-[11px] text-[#9CA3AF] text-center mt-2">
+            Opens a printable PDF in a new tab.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

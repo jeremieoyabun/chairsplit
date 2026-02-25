@@ -1,13 +1,81 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+
+function getInitials(name: string) {
+  return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
+}
+
+const inputClass =
+  "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
 export function ShopProfile({ onBack }: { onBack: () => void }) {
-  const [name, setName] = useState("Monkey Barber Shop")
-  const [address, setAddress] = useState("Patong Beach, Phuket, Thailand")
-  const [phone, setPhone] = useState("+66 76 123 456")
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [name, setName] = useState("")
+  const [address, setAddress] = useState("")
+  const [phone, setPhone] = useState("")
   const [currency, setCurrency] = useState("thb")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+      setShopId(profile.shop_id)
+
+      const { data: shop, error: shopErr } = await supabase
+        .from("shops")
+        .select("name, address, phone, currency")
+        .eq("id", profile.shop_id)
+        .single()
+
+      if (shopErr) { console.error("[ShopProfile] load:", shopErr.message); setLoading(false); return }
+      if (shop) {
+        setName(shop.name ?? "")
+        setAddress(shop.address ?? "")
+        setPhone(shop.phone ?? "")
+        setCurrency(shop.currency ?? "thb")
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const handleSave = async () => {
+    if (!shopId) return
+    setSaving(true)
+    setError(null)
+    const supabase = createClient()
+    const { error: saveErr } = await supabase
+      .from("shops")
+      .update({ name: name.trim(), address: address.trim() || null, phone: phone.trim() || null, currency })
+      .eq("id", shopId)
+
+    setSaving(false)
+    if (saveErr) {
+      console.error("[ShopProfile] save:", saveErr.message)
+      setError(saveErr.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
+  const initials = name ? getInitials(name) : "—"
 
   return (
     <div className="flex flex-col min-h-full">
@@ -26,69 +94,71 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
         </h1>
         <button
           type="button"
-          className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity"
+          onClick={handleSave}
+          disabled={saving || loading}
+          className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity disabled:opacity-40"
         >
-          Enregistrer
+          {saving ? "…" : saved ? "Saved ✓" : "Enregistrer"}
         </button>
       </div>
+
+      {error && (
+        <p className="text-[12px] text-red-500 text-center px-5 pb-1">{error}</p>
+      )}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {/* Avatar */}
         <div className="flex flex-col items-center mt-7">
           <div className="w-20 h-20 rounded-full bg-[#111113] flex items-center justify-center">
-            <span className="text-[28px] font-bold text-[#FFFFFF]">MB</span>
+            <span className="text-[28px] font-bold text-[#FFFFFF]">{initials}</span>
           </div>
-          <button
-            type="button"
-            className="text-[13px] font-medium text-[#2563EB] mt-2.5 active:opacity-60 transition-opacity"
-          >
-            Modifier la photo
-          </button>
         </div>
 
         {/* Form */}
         <div className="mt-8 px-5 flex flex-col gap-5">
-          {/* Nom du salon */}
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
               Nom du salon
             </label>
             <input
               type="text"
-              value={name}
+              value={loading ? "" : name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+              placeholder={loading ? "Loading…" : "Nom du salon"}
+              className={inputClass}
+              disabled={loading}
             />
           </div>
 
-          {/* Adresse */}
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
               Adresse
             </label>
             <input
               type="text"
-              value={address}
+              value={loading ? "" : address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+              placeholder={loading ? "Loading…" : "Adresse du salon"}
+              className={inputClass}
+              disabled={loading}
             />
           </div>
 
-          {/* Telephone */}
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
               {"T\u00E9l\u00E9phone"}
             </label>
             <input
               type="tel"
-              value={phone}
+              value={loading ? "" : phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+              placeholder={loading ? "Loading…" : "+66..."}
+              className={inputClass}
+              disabled={loading}
             />
           </div>
 
-          {/* Devise */}
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
               Devise

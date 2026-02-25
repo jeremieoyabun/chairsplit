@@ -1,26 +1,29 @@
 "use client"
 
-import { BarChart3, Banknote, Users } from "lucide-react"
+import { BarChart3, Banknote, Users, CalendarDays } from "lucide-react"
 
 const actions = [
   { icon: BarChart3, label: "Reports", bg: "#DBEAFE" },
   { icon: Banknote, label: "Payouts", bg: "#D1FAE5" },
   { icon: Users, label: "Clients", bg: "#FEF3C7" },
+  { icon: CalendarDays, label: "Agenda", bg: "#EDE9FE" },
 ]
 
 export function QuickActions({
   onReportsPress,
   onPayoutsPress,
   onClientsPress,
+  onAgendaPress,
 }: {
   onReportsPress?: () => void
   onPayoutsPress?: () => void
   onClientsPress?: () => void
+  onAgendaPress?: () => void
 }) {
-  const handlers = [onReportsPress, onPayoutsPress, onClientsPress]
+  const handlers = [onReportsPress, onPayoutsPress, onClientsPress, onAgendaPress]
 
   return (
-    <div className="flex items-start justify-center gap-8 px-5 mt-6">
+    <div className="flex items-start justify-center gap-5 px-5 mt-6">
       {actions.map((action, i) => (
         <button
           key={action.label}
@@ -29,7 +32,7 @@ export function QuickActions({
           className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
         >
           <div
-            className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center"
+            className="w-[56px] h-[56px] rounded-2xl flex items-center justify-center"
             style={{ backgroundColor: action.bg }}
           >
             <action.icon className="w-6 h-6 text-[#374151]" strokeWidth={1.8} />

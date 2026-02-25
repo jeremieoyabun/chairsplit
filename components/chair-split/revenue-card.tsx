@@ -1,12 +1,75 @@
 "use client"
 
-const miniKpis = [
-  { label: "VISITS", value: "7" },
-  { label: "COMMISSIONS", value: "2 900", hasBaht: true },
-  { label: "AVG.TICKET", value: "829", hasBaht: true },
-]
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+
+function fmt(n: number) {
+  return Math.round(n).toLocaleString("fr-FR")
+}
+
+function todayRange() {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
 
 export function RevenueCard() {
+  const [revenue, setRevenue] = useState(0)
+  const [visitCount, setVisitCount] = useState(0)
+  const [commissions, setCommissions] = useState(0)
+  const [avgTicket, setAvgTicket] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+
+      const { start, end } = todayRange()
+      const { data: raw, error } = await supabase
+        .from("visits")
+        .select("total_amount, commission_amount, status")
+        .eq("shop_id", profile.shop_id)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
+
+      if (error) { console.error("[RevenueCard] visits:", error.message); setLoading(false); return }
+
+      const all = raw ?? []
+      const validated = all.filter((v) => v.status === "validated")
+      const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
+      const totalCommissions = validated.reduce((s, v) => s + v.commission_amount, 0)
+      const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
+
+      setRevenue(totalRevenue)
+      setVisitCount(all.length)
+      setCommissions(totalCommissions)
+      setAvgTicket(Math.round(avgTkt))
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const today = new Date()
+  const dateLabel = today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+
+  const miniKpis = [
+    { label: "VISITS", value: loading ? "—" : String(visitCount) },
+    { label: "COMMISSIONS", value: loading ? "—" : fmt(commissions), hasBaht: !loading },
+    { label: "AVG.TICKET", value: loading ? "—" : fmt(avgTicket), hasBaht: !loading && avgTicket > 0 },
+  ]
+
   return (
     <div className="mx-5 mt-4">
       <div className="rounded-[24px] bg-[#1A1A1A] px-4 py-6 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
@@ -15,20 +78,18 @@ export function RevenueCard() {
           <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF]">
             {"TODAY\u2019S REVENUE"}
           </span>
-          <span className="text-[12px] text-[#6B7280]">Feb 10, 2026</span>
+          <span className="text-[12px] text-[#6B7280]">{dateLabel}</span>
         </div>
 
         {/* Main amount */}
         <div className="mt-2 flex items-baseline px-1">
           <span className="text-[48px] font-bold text-[#FFFFFF] leading-none tracking-tight">
-            5 800
+            {loading ? "—" : fmt(revenue)}
           </span>
-          <span className="text-[28px] text-[#6B7280] ml-1.5 font-normal">
-            {"\u0E3F"}
-          </span>
+          <span className="text-[28px] text-[#6B7280] ml-1.5 font-normal">{"\u0E3F"}</span>
         </div>
 
-        {/* Mini KPI row — centered content, tighter gap */}
+        {/* Mini KPI row */}
         <div className="mt-5 flex gap-2">
           {miniKpis.map((kpi) => (
             <div
@@ -43,9 +104,7 @@ export function RevenueCard() {
                   {kpi.value}
                 </span>
                 {kpi.hasBaht && (
-                  <span className="text-[14px] text-[#6B7280] ml-0.5">
-                    {"\u0E3F"}
-                  </span>
+                  <span className="text-[14px] text-[#6B7280] ml-0.5">{"\u0E3F"}</span>
                 )}
               </div>
             </div>
