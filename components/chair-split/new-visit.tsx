@@ -125,7 +125,6 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         status: "validated",
         total_amount: total,
         visited_at: new Date().toISOString(),
-        ...(clientQuery.trim() ? { client_name: clientQuery.trim() } : {}),
       })
       .select("id")
       .single()

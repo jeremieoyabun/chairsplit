@@ -53,7 +53,7 @@ export function RevenueCard() {
       const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
 
       setRevenue(totalRevenue)
-      setVisitCount(all.length)
+      setVisitCount(validated.length)
       setCommissions(totalCommissions)
       setAvgTicket(Math.round(avgTkt))
       setLoading(false)
