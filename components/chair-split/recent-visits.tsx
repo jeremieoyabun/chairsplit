@@ -54,6 +54,22 @@ function todayRange() {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
+function toDisplay(rows: DbVisit[]): DisplayVisit[] {
+  return rows.map((v) => {
+    const barberName = v.barber?.full_name ?? "Unknown"
+    return {
+      id: v.id,
+      initials: getInitials(barberName),
+      name: v.clients?.name ?? "Walk-in",
+      services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+      amount: fmt(v.total_amount),
+      time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+      color: colorFor(barberName),
+      status: v.status as "validated" | "draft" | "cancelled",
+    }
+  })
+}
+
 export function RecentVisits({
   onVisitPress,
   onDraftPress,
@@ -65,9 +81,27 @@ export function RecentVisits({
 }) {
   const [visits, setVisits] = useState<DisplayVisit[]>([])
   const [loading, setLoading] = useState(true)
+  const [shopId, setShopId] = useState<string | null>(null)
 
+  const loadVisits = async (sid: string) => {
+    const supabase = createClient()
+    const { start, end } = todayRange()
+    const { data: raw, error } = await supabase
+      .from("visits")
+      .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
+      .eq("shop_id", sid)
+      .gte("visited_at", start)
+      .lt("visited_at", end)
+      .order("visited_at", { ascending: true })
+
+    if (error) { console.error("[RecentVisits]", error.message); return }
+    setVisits(toDisplay((raw ?? []) as unknown as DbVisit[]))
+    setLoading(false)
+  }
+
+  // Initial load
   useEffect(() => {
-    const load = async () => {
+    const init = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
@@ -79,38 +113,26 @@ export function RecentVisits({
         .single()
 
       if (!profile?.shop_id) { setLoading(false); return }
-
-      const { start, end } = todayRange()
-      const { data: raw, error } = await supabase
-        .from("visits")
-        .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
-        .eq("shop_id", profile.shop_id)
-        .gte("visited_at", start)
-        .lt("visited_at", end)
-        .order("visited_at", { ascending: true })
-
-      if (error) { console.error("[RecentVisits] visits:", error.message); setLoading(false); return }
-
-      const rows = (raw ?? []) as unknown as DbVisit[]
-      const display: DisplayVisit[] = rows.map((v) => {
-        const barberName = v.barber?.full_name ?? "Unknown"
-        return {
-          id: v.id,
-          initials: getInitials(barberName),
-          name: v.clients?.name ?? "Walk-in",
-          services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
-          amount: fmt(v.total_amount),
-          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-          color: colorFor(barberName),
-          status: v.status as "validated" | "draft" | "cancelled",
-        }
-      })
-
-      setVisits(display)
-      setLoading(false)
+      setShopId(profile.shop_id)
+      await loadVisits(profile.shop_id)
     }
-    load()
+    init()
   }, [])
+
+  // Realtime — reload on any visit INSERT or UPDATE in this shop
+  useEffect(() => {
+    if (!shopId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`recent-visits-${shopId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "visits", filter: `shop_id=eq.${shopId}` },
+        () => loadVisits(shopId))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "visits", filter: `shop_id=eq.${shopId}` },
+        () => loadVisits(shopId))
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [shopId])
 
   return (
     <div className="px-5 mt-8">
@@ -132,11 +154,11 @@ export function RecentVisits({
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {visits.map((visit, i) => {
+          {visits.map((visit) => {
             const badge = statusConfig[visit.status]
             return (
               <div
-                key={`${visit.id}-${i}`}
+                key={visit.id}
                 onClick={() => visit.status === "draft" ? onDraftPress?.(visit.id) : onVisitPress?.(visit.id)}
                 className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
               >

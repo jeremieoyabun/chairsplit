@@ -17,6 +17,7 @@ type DbVisit = {
 }
 
 type DisplayVisit = {
+  id: string
   client: string
   services: string
   amount: string
@@ -30,12 +31,7 @@ const statusConfig = {
 }
 
 function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0] ?? "")
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
+  return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
 }
 
 function fmt(n: number) {
@@ -61,6 +57,7 @@ export function BarberHome({
   onNewVisitPress?: () => void
   onViewAllPress?: () => void
 }) {
+  const [userId, setUserId] = useState<string | null>(null)
   const [fullName, setFullName] = useState("")
   const [visits, setVisits] = useState<DisplayVisit[]>([])
   const [earnings, setEarnings] = useState(0)
@@ -69,12 +66,60 @@ export function BarberHome({
   const [commissionPct, setCommissionPct] = useState<number | null>(null)
   const [avgTicket, setAvgTicket] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [validatedToast, setValidatedToast] = useState<string | null>(null)
 
+  const loadVisits = async (uid: string) => {
+    const supabase = createClient()
+    const { start, end } = todayRange()
+    const { data: raw, error } = await supabase
+      .from("visits")
+      .select("id, total_amount, commission_amount, commission_rate, status, visited_at, clients(name), visit_services(service_name)")
+      .eq("barber_id", uid)
+      .gte("visited_at", start)
+      .lt("visited_at", end)
+      .order("visited_at", { ascending: true })
+
+    if (error) { console.error("[BarberHome]", error.message); return }
+
+    const rows = (raw ?? []) as unknown as DbVisit[]
+    const validated = rows.filter((v) => v.status === "validated")
+    const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
+    const totalCommission = validated.reduce((s, v) => s + v.commission_amount, 0)
+    const avgRate = validated.length > 0
+      ? validated.reduce((s, v) => s + v.commission_rate, 0) / validated.length
+      : null
+    const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
+
+    setRevenue(totalRevenue)
+    setEarnings(totalCommission)
+    setVisitCount(rows.length)
+    setCommissionPct(avgRate !== null ? Math.round(avgRate) : null)
+    setAvgTicket(Math.round(avgTkt))
+
+    setVisits(
+      rows
+        .filter((v) => v.status !== "cancelled")
+        .map((v) => ({
+          id: v.id,
+          client: v.clients?.name ?? "Walk-in",
+          services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+          amount: fmt(v.total_amount),
+          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          status: v.status as "validated" | "draft",
+        }))
+    )
+    setLoading(false)
+  }
+
+  // Initial load
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
+
+      setUserId(user.id)
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -84,47 +129,59 @@ export function BarberHome({
 
       if (profile?.full_name) setFullName(profile.full_name)
 
-      const { start, end } = todayRange()
-      const { data: raw, error } = await supabase
-        .from("visits")
-        .select("id, total_amount, commission_amount, commission_rate, status, visited_at, clients(name), visit_services(service_name)")
-        .eq("barber_id", user.id)
-        .gte("visited_at", start)
-        .lt("visited_at", end)
-        .order("visited_at", { ascending: true })
+      // Unread notifications count
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+      setUnreadCount(count ?? 0)
 
-      if (error) { console.error("[BarberHome] visits:", error.message); setLoading(false); return }
-
-      const rows = (raw ?? []) as unknown as DbVisit[]
-      const validated = rows.filter((v) => v.status === "validated")
-      const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
-      const totalCommission = validated.reduce((s, v) => s + v.commission_amount, 0)
-      const avgRate = validated.length > 0
-        ? validated.reduce((s, v) => s + v.commission_rate, 0) / validated.length
-        : null
-      const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
-
-      setRevenue(totalRevenue)
-      setEarnings(totalCommission)
-      setVisitCount(rows.length)
-      setCommissionPct(avgRate !== null ? Math.round(avgRate) : null)
-      setAvgTicket(Math.round(avgTkt))
-
-      const displayVisits: DisplayVisit[] = rows
-        .filter((v) => v.status !== "cancelled")
-        .map((v) => ({
-          client: v.clients?.name ?? "Walk-in",
-          services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
-          amount: fmt(v.total_amount),
-          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-          status: v.status as "validated" | "draft",
-        }))
-
-      setVisits(displayVisits)
-      setLoading(false)
+      await loadVisits(user.id)
     }
     load()
   }, [])
+
+  // Realtime — visits UPDATE (detect validation) + notifications INSERT (unread dot)
+  useEffect(() => {
+    if (!userId) return
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel(`barber-home-${userId}`)
+      // When a visit is updated (e.g., owner validates a draft)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "visits",
+        filter: `barber_id=eq.${userId}`,
+      }, (payload: any) => {
+        if (payload.new?.status === "validated") {
+          const amount = payload.new?.total_amount
+          setValidatedToast(`Visit validated ✓${amount ? ` — ${fmt(amount)}\u0E3F` : ""}`)
+          setTimeout(() => setValidatedToast(null), 4000)
+        }
+        loadVisits(userId)
+      })
+      // When a new notification arrives for this barber
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${userId}`,
+      }, () => {
+        setUnreadCount((n) => n + 1)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  // Reset unread count when notifications screen is opened
+  const handleNotificationsPress = () => {
+    setUnreadCount(0)
+    onNotificationsPress?.()
+  }
 
   const initials = fullName ? getInitials(fullName) : "—"
   const firstName = fullName.split(" ")[0] || "—"
@@ -140,6 +197,13 @@ export function BarberHome({
 
   return (
     <div className="flex flex-col min-h-full pb-28">
+      {/* Validated toast */}
+      {validatedToast && (
+        <div className="mx-5 mt-4 rounded-[14px] bg-[#ECFDF5] border border-[#BBF7D0] px-4 py-3 flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-[#16A34A] flex-1">{validatedToast}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-2">
         <div className="flex items-center gap-3">
@@ -163,11 +227,14 @@ export function BarberHome({
 
         <button
           type="button"
-          onClick={onNotificationsPress}
-          className="w-11 h-11 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
+          onClick={handleNotificationsPress}
+          className="relative w-11 h-11 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Notifications"
         >
           <Bell className="w-[22px] h-[22px] text-[#111113]" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-[9px] h-[9px] rounded-full bg-[#EF4444] border-2 border-[#F0F0F3]" />
+          )}
         </button>
       </div>
 
@@ -263,11 +330,11 @@ export function BarberHome({
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            {visits.map((visit, i) => {
+            {visits.map((visit) => {
               const badge = statusConfig[visit.status]
               return (
                 <div
-                  key={`${visit.client}-${visit.time}-${i}`}
+                  key={visit.id}
                   className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform cursor-pointer"
                 >
                   <div className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">

@@ -82,6 +82,15 @@ export function VisitDetail({
     const { error } = await supabase.from("visits").update({ status: "validated" }).eq("id", visit.id)
     if (error) { setActionError(error.message); setActionLoading(false); return }
     setVisit((v) => v ? { ...v, status: "validated" } : v)
+    // Notify the barber in-app
+    await supabase.from("notifications").insert({
+      user_id: visit.barber_id,
+      type: "visit_validated",
+      title: "Visit validated \u2713",
+      body: `Your visit of ${fmt(visit.total_amount)}\u0E3F has been validated.`,
+      data: { visit_id: visit.id },
+      is_read: false,
+    })
     setActionLoading(false)
   }
 
