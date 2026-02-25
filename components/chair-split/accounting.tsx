@@ -1,33 +1,23 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { ChevronRight } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-const kpis = [
-  { value: "52.6K", label: "monthly revenue", hasBaht: true, isNegative: false },
-  { value: "52.7K", label: "expenses", hasBaht: true, isNegative: false },
-  { value: "-0.1K", label: "result", hasBaht: true, isNegative: true },
-]
+function fmtK(n: number): string {
+  if (Math.abs(n) >= 1000) {
+    const k = n / 1000
+    return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + "K"
+  }
+  return Math.round(n).toLocaleString("fr-FR")
+}
 
-const tiles = [
-  {
-    emoji: "\uD83D\uDCB0",
-    key: "expenses",
-    title: "Shop expenses",
-    subtitle: "5 expenses \u00B7 52 700 \u0E3F this month",
-  },
-  {
-    emoji: "\uD83D\uDCCA",
-    key: "statements",
-    title: "Monthly reports",
-    subtitle: "Results by month",
-  },
-  {
-    emoji: "\uD83D\uDCC4",
-    key: "payslips",
-    title: "Payslips",
-    subtitle: "Barber statements by month",
-  },
-]
+function monthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
 
 export function Accounting({
   onExpensesPress,
@@ -38,6 +28,100 @@ export function Accounting({
   onStatementsPress?: () => void
   onPayslipsPress?: () => void
 }) {
+  const [revenue, setRevenue] = useState<number | null>(null)
+  const [charges, setCharges] = useState<number | null>(null)
+  const [expenseCount, setExpenseCount] = useState<number>(0)
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) return
+
+      const { start, end } = monthRange()
+
+      // Revenue from validated visits this month
+      const { data: visits } = await supabase
+        .from("visits")
+        .select("total_amount")
+        .eq("shop_id", profile.shop_id)
+        .eq("status", "validated")
+        .gte("visited_at", start)
+        .lt("visited_at", end)
+
+      const totalRevenue = (visits ?? []).reduce((s, v) => s + (v.total_amount ?? 0), 0)
+      setRevenue(totalRevenue)
+
+      // Expenses this month
+      const { data: expenses } = await supabase
+        .from("expenses")
+        .select("amount")
+        .eq("shop_id", profile.shop_id)
+        .gte("expense_date", start)
+        .lt("expense_date", end)
+
+      const totalCharges = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
+      setCharges(totalCharges)
+      setExpenseCount((expenses ?? []).length)
+    }
+    load()
+  }, [])
+
+  const loading = revenue === null || charges === null
+  const result = loading ? 0 : revenue! - charges!
+
+  const kpis = [
+    {
+      value: loading ? "—" : fmtK(revenue!),
+      label: "revenue",
+      hasBaht: !loading,
+      isNegative: false,
+    },
+    {
+      value: loading ? "—" : fmtK(charges!),
+      label: "expenses",
+      hasBaht: !loading,
+      isNegative: false,
+    },
+    {
+      value: loading ? "—" : (result < 0 ? "-" : "") + fmtK(Math.abs(result)),
+      label: "result",
+      hasBaht: !loading,
+      isNegative: result < 0,
+    },
+  ]
+
+  const tiles = [
+    {
+      emoji: "💰",
+      key: "expenses",
+      title: "Shop expenses",
+      subtitle: loading
+        ? "Loading…"
+        : `${expenseCount} expense${expenseCount !== 1 ? "s" : ""} · ${Math.round(charges!).toLocaleString("fr-FR")} ฿ this month`,
+    },
+    {
+      emoji: "📊",
+      key: "statements",
+      title: "Monthly reports",
+      subtitle: "Results by month",
+    },
+    {
+      emoji: "📄",
+      key: "payslips",
+      title: "Payslips",
+      subtitle: "Barber statements by month",
+    },
+  ]
+
   const handlers: Record<string, (() => void) | undefined> = {
     expenses: onExpensesPress,
     statements: onStatementsPress,
@@ -53,7 +137,7 @@ export function Accounting({
         </h1>
       </div>
 
-      {/* Dark KPI Banner — centered, K format */}
+      {/* Dark KPI Banner */}
       <div className="mx-5 mt-2">
         <div className="rounded-[20px] bg-[#1A1A1A] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
           <div className="flex gap-2">

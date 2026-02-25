@@ -12,10 +12,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'ChairSplit - Barbershop Management',
   description: 'Track visits, commissions, and finances for your barbershop.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ChairSplit',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#F8F8FA',
+  themeColor: '#1A1A1A',
   width: 'device-width',
   initialScale: 1,
 }

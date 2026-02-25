@@ -13,6 +13,7 @@ export function AddBarber({
   onUpgradePress?: () => void
 }) {
   const [shopId, setShopId] = useState<string | null>(null)
+  const [shopName, setShopName] = useState("")
   const [plan, setPlan] = useState("free")
   const [barberCount, setBarberCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -42,11 +43,12 @@ export function AddBarber({
 
       const { data: shop } = await supabase
         .from("shops")
-        .select("plan, plan_status")
+        .select("name, plan, plan_status")
         .eq("id", profile.shop_id)
         .single()
 
       setPlan(shop?.plan ?? "free")
+      if (shop?.name) setShopName(shop.name)
 
       const { count } = await supabase
         .from("profiles")
@@ -93,6 +95,19 @@ export function AddBarber({
       setError(invErr.message)
       return
     }
+
+    // Send invitation email (best-effort)
+    fetch("/api/emails/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        shopName: shopName || "the shop",
+        role,
+      }),
+    }).catch(() => {})
+
     setSent(true)
     setTimeout(() => { setSent(false); onBack() }, 1500)
   }

@@ -24,6 +24,7 @@ import { RoleSelect } from "@/components/chair-split/role-select"
 import { Services } from "@/components/chair-split/services"
 import { Commissions } from "@/components/chair-split/commissions"
 import { Clients } from "@/components/chair-split/clients"
+import { ClientDetail } from "@/components/chair-split/client-detail"
 import { Subscription } from "@/components/chair-split/subscription"
 import { ShopProfile } from "@/components/chair-split/shop-profile"
 import { Notifications } from "@/components/chair-split/notifications"
@@ -47,7 +48,7 @@ type Screen =
   | "history"
   | "team" | "barber-detail" | "add-barber"
   | "accounting" | "expenses" | "statements" | "payslips"
-  | "settings" | "service-catalog" | "commissions" | "clients" | "subscription" | "shop-profile"
+  | "settings" | "service-catalog" | "commissions" | "clients" | "client-detail" | "subscription" | "shop-profile"
   | "agenda"
   | "barber-home" | "barber-new-visit" | "barber-history" | "barber-stats" | "barber-settings"
 
@@ -58,6 +59,7 @@ export default function Page() {
   const [notification, setNotification] = useState<Notification | null>(null)
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null)
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -272,7 +274,12 @@ export default function Page() {
       ) : screen === "commissions" ? (
         <Commissions onBack={() => setScreen("settings")} />
       ) : screen === "clients" ? (
-        <Clients onBack={() => setScreen("settings")} />
+        <Clients
+          onBack={() => setScreen("settings")}
+          onClientPress={(id) => { setSelectedClientId(id); setScreen("client-detail") }}
+        />
+      ) : screen === "client-detail" ? (
+        <ClientDetail clientId={selectedClientId} onBack={() => setScreen("clients")} />
       ) : screen === "subscription" ? (
         <Subscription onBack={() => setScreen("settings")} />
       ) : screen === "shop-profile" ? (

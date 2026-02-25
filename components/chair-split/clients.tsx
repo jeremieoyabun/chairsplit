@@ -29,7 +29,7 @@ function getInitials(name: string) {
 const inputClass =
   "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
-export function Clients({ onBack }: { onBack: () => void }) {
+export function Clients({ onBack, onClientPress }: { onBack: () => void; onClientPress?: (id: string) => void }) {
   const [shopId, setShopId] = useState<string | null>(null)
   const [clients, setClients] = useState<DisplayClient[]>([])
   const [query, setQuery] = useState("")
@@ -169,6 +169,10 @@ export function Clients({ onBack }: { onBack: () => void }) {
             {filtered.map((client) => (
               <div
                 key={client.id}
+                onClick={() => onClientPress?.(client.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && onClientPress?.(client.id)}
                 className="flex items-center gap-3 px-[18px] py-4 border-b border-[#F8F8FA] last:border-b-0 cursor-pointer active:bg-[#FAFAFA] transition-colors"
               >
                 <div

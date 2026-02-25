@@ -18,6 +18,7 @@ export function Signup({
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checkEmail, setCheckEmail] = useState(false)
 
   const handleSignup = async () => {
     if (!name || !email || !password) {
@@ -45,7 +46,55 @@ export function Signup({
       return
     }
 
-    onSignup()
+    // Fire welcome email (best-effort, don't block on it)
+    fetch("/api/emails/welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+    }).catch(() => {})
+
+    // Show "check your email" banner before continuing
+    setCheckEmail(true)
+  }
+
+  if (checkEmail) {
+    return (
+      <div
+        className="flex flex-col h-full overflow-y-auto scrollbar-hide"
+        style={{ background: "linear-gradient(180deg, #FFFFFF 0%, #F4F4F6 100%)" }}
+      >
+        <div className="flex flex-col items-center justify-center flex-1 px-9 gap-6">
+          <div className="w-20 h-20 rounded-full bg-[#EFF6FF] flex items-center justify-center">
+            <span className="text-[38px]">📬</span>
+          </div>
+          <div className="text-center">
+            <h2 className="text-[22px] font-bold text-[#111113]">Check your inbox</h2>
+            <p className="text-[14px] text-[#6B7280] mt-2 leading-relaxed">
+              {"We sent a confirmation email to "}
+              <span className="font-semibold text-[#111113]">{email}</span>
+              {". Click the link inside to verify your account."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onSignup}
+            className="w-full h-[52px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[15px] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform"
+          >
+            Continue anyway →
+          </button>
+          <p className="text-[12px] text-[#9CA3AF] text-center">
+            {"Didn\u2019t receive it? Check spam or "}
+            <button
+              type="button"
+              onClick={() => setCheckEmail(false)}
+              className="underline underline-offset-2 text-[#6B7280]"
+            >
+              go back
+            </button>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
