@@ -74,7 +74,7 @@ function getRange(segment: number): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-export function History({ onVisitPress }: { onVisitPress?: () => void }) {
+export function History({ onVisitPress }: { onVisitPress?: (id: string) => void }) {
   const [activeSegment, setActiveSegment] = useState(1)
   const [dayGroups, setDayGroups] = useState<DayGroup[]>([])
   const [kpis, setKpis] = useState({ visits: 0, revenue: 0, commissions: 0 })
@@ -240,7 +240,7 @@ export function History({ onVisitPress }: { onVisitPress?: () => void }) {
                 return (
                   <div
                     key={`${visit.id}-${i}`}
-                    onClick={onVisitPress}
+                    onClick={() => onVisitPress?.(visit.id)}
                     className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
                   >
                     <div

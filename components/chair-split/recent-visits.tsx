@@ -59,8 +59,8 @@ export function RecentVisits({
   onDraftPress,
   onViewAllPress,
 }: {
-  onVisitPress?: () => void
-  onDraftPress?: () => void
+  onVisitPress?: (id: string) => void
+  onDraftPress?: (id: string) => void
   onViewAllPress?: () => void
 }) {
   const [visits, setVisits] = useState<DisplayVisit[]>([])
@@ -137,7 +137,7 @@ export function RecentVisits({
             return (
               <div
                 key={`${visit.id}-${i}`}
-                onClick={visit.status === "draft" ? onDraftPress : onVisitPress}
+                onClick={() => visit.status === "draft" ? onDraftPress?.(visit.id) : onVisitPress?.(visit.id)}
                 className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
               >
                 <div

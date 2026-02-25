@@ -38,9 +38,10 @@ import { BarberSettings } from "@/components/chair-split/barber-settings"
 import { BarberBottomNav } from "@/components/chair-split/barber-bottom-nav"
 import { SetupShop } from "@/components/chair-split/setup-shop"
 import { Agenda } from "@/components/chair-split/agenda"
+import { ResetPassword } from "@/components/chair-split/reset-password"
 
 type Screen =
-  | "login" | "signup" | "role-select" | "setup-shop"
+  | "login" | "signup" | "role-select" | "setup-shop" | "reset-password"
   | "home" | "notifications" | "profile"
   | "new-visit" | "visit-detail" | "visit-draft"
   | "history"
@@ -55,6 +56,8 @@ type Notification = { type: "success" | "info" | "error"; message: string }
 export default function Page() {
   const [screen, setScreen] = useState<Screen>("login")
   const [notification, setNotification] = useState<Notification | null>(null)
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null)
+  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -63,16 +66,18 @@ export default function Page() {
     return () => clearTimeout(t)
   }, [notification])
 
-  // Handle URL params from Stripe / Google OAuth returns
+  // Handle URL params from Stripe / Google OAuth / password reset
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const stripe = params.get("stripe")
     const google = params.get("google")
+    const reset = params.get("reset")
     if (stripe === "success") setNotification({ type: "success", message: "Subscription activated!" })
     else if (stripe === "canceled") setNotification({ type: "info", message: "Checkout canceled." })
     else if (google === "connected") setNotification({ type: "success", message: "Google Calendar connected!" })
     else if (google === "error") setNotification({ type: "error", message: "Could not connect Google Calendar." })
-    if (stripe || google) window.history.replaceState({}, "", "/")
+    else if (reset === "true") setScreen("reset-password")
+    if (stripe || google || reset) window.history.replaceState({}, "", "/")
   }, [])
 
   // Restore session on mount — if already logged in, skip login screen
@@ -195,6 +200,11 @@ export default function Page() {
         }} />
       ) : screen === "setup-shop" ? (
         <SetupShop onComplete={() => setScreen("home")} />
+      ) : screen === "reset-password" ? (
+        <ResetPassword onComplete={() => {
+          setNotification({ type: "success", message: "Password updated successfully!" })
+          setScreen("login")
+        }} />
       ) : screen === "home" ? (
         <>
           <Header
@@ -209,8 +219,8 @@ export default function Page() {
             onAgendaPress={() => setScreen("agenda")}
           />
           <RecentVisits
-            onVisitPress={() => setScreen("visit-detail")}
-            onDraftPress={() => setScreen("visit-draft")}
+            onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }}
+            onDraftPress={(id) => { setSelectedVisitId(id); setScreen("visit-draft") }}
             onViewAllPress={() => setScreen("history")}
           />
           <BottomNav {...navProps} />
@@ -218,16 +228,16 @@ export default function Page() {
       ) : screen === "notifications" ? (
         <Notifications onBack={() => setScreen("home")} />
       ) : screen === "profile" ? (
-        <Profile onBack={() => setScreen("home")} />
+        <Profile onBack={() => setScreen("settings")} />
       ) : screen === "history" ? (
         <>
-          <History onVisitPress={() => setScreen("visit-detail")} />
+          <History onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }} />
           <BottomNav {...navProps} />
         </>
       ) : screen === "team" ? (
         <>
           <Team
-            onBarberPress={() => setScreen("barber-detail")}
+            onBarberPress={(id) => { setSelectedBarberId(id); setScreen("barber-detail") }}
             onAddBarberPress={() => setScreen("add-barber")}
           />
           <BottomNav {...navProps} />
@@ -274,11 +284,16 @@ export default function Page() {
       ) : screen === "expenses" ? (
         <Expenses onBack={() => setScreen("accounting")} />
       ) : screen === "barber-detail" ? (
-        <BarberDetail onBack={() => setScreen("team")} />
+        <BarberDetail onBack={() => setScreen("team")} barberId={selectedBarberId} />
       ) : screen === "new-visit" ? (
-        <NewVisit onBack={() => setScreen("home")} />
+        <NewVisit
+          onBack={() => setScreen("home")}
+          onConfirm={() => { setNotification({ type: "success", message: "Visit confirmed!" }); setScreen("home") }}
+        />
       ) : screen === "visit-detail" ? (
-        <VisitDetail onBack={() => setScreen("home")} status="validated" />
+        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="validated" />
+      ) : screen === "visit-draft" ? (
+        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="draft" />
       ) : screen === "agenda" ? (
         <Agenda onBack={() => setScreen("home")} />
 
@@ -296,7 +311,7 @@ export default function Page() {
         <BarberNewVisit onBack={() => setScreen("barber-home")} />
       ) : screen === "barber-history" ? (
         <>
-          <BarberHistory />
+          <BarberHistory onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }} />
           <BarberBottomNav {...barberNavProps} />
         </>
       ) : screen === "barber-stats" ? (
@@ -310,7 +325,7 @@ export default function Page() {
           onSignOut={handleSignOut}
         />
       ) : (
-        <VisitDetail onBack={() => setScreen("home")} status="draft" />
+        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="draft" />
       )}
     </PhoneFrame>
   )

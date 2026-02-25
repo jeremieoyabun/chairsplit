@@ -1,15 +1,66 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft, Camera } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowLeft } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+
+const inputClass =
+  "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
 
 export function Profile({ onBack }: { onBack: () => void }) {
-  const [shopName, setShopName] = useState("Monkey Barber Shop")
-  const [yourName, setYourName] = useState("J\u00E9r\u00F4me K.")
-  const [email, setEmail] = useState("jerome@monkeybarber.com")
-  const [phone, setPhone] = useState("+66 76 123 456")
-  const [address, setAddress] = useState("Patong Beach, Phuket, Thailand")
-  const [currency, setCurrency] = useState("thb")
+  const [userId, setUserId] = useState<string | null>(null)
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+      setUserId(user.id)
+      setEmail(user.email ?? "")
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single()
+
+      if (profile) setFullName(profile.full_name ?? "")
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const handleSave = async () => {
+    if (!userId) return
+    setSaving(true)
+    setError(null)
+    const supabase = createClient()
+    const { error: saveErr } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName.trim() })
+      .eq("id", userId)
+    setSaving(false)
+    if (saveErr) {
+      setError(saveErr.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
+  const initials = fullName ? getInitials(fullName) : "—"
 
   return (
     <div className="flex flex-col min-h-full">
@@ -23,61 +74,40 @@ export function Profile({ onBack }: { onBack: () => void }) {
         >
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
         </button>
-        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113]">
-          Profile
-        </h1>
+        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113]">Profile</h1>
         <button
           type="button"
-          className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity"
+          onClick={handleSave}
+          disabled={saving || loading}
+          className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity disabled:opacity-40"
         >
-          Save
+          {saving ? "…" : saved ? "Saved ✓" : "Save"}
         </button>
       </div>
 
-      {/* Scrollable content */}
+      {error && <p className="text-[12px] text-red-500 text-center px-5 pb-1">{error}</p>}
+
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {/* Avatar */}
         <div className="flex flex-col items-center mt-7">
-          <div className="relative">
-            <div className="w-[88px] h-[88px] rounded-full bg-[#111113] flex items-center justify-center">
-              <span className="text-[30px] font-bold text-[#FFFFFF]">MB</span>
-            </div>
-            {/* Camera overlay */}
-            <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#FFFFFF] shadow-[0_2px_8px_rgba(0,0,0,0.12)] flex items-center justify-center">
-              <Camera className="w-3.5 h-3.5 text-[#111113]" />
-            </div>
+          <div className="w-[88px] h-[88px] rounded-full bg-[#111113] flex items-center justify-center">
+            <span className="text-[30px] font-bold text-[#FFFFFF]">{initials}</span>
           </div>
-          <button
-            type="button"
-            className="text-[13px] font-medium text-[#2563EB] mt-2.5 active:opacity-60 transition-opacity"
-          >
-            Change photo
-          </button>
         </div>
 
         {/* Form */}
         <div className="mt-7 px-5 flex flex-col gap-5">
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              SHOP NAME
-            </label>
-            <input
-              type="text"
-              value={shopName}
-              onChange={(e) => setShopName(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
               YOUR NAME
             </label>
             <input
               type="text"
-              value={yourName}
-              onChange={(e) => setYourName(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+              value={loading ? "" : fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder={loading ? "Loading…" : "Full name"}
+              className={inputClass}
+              disabled={loading}
             />
           </div>
 
@@ -87,72 +117,12 @@ export function Profile({ onBack }: { onBack: () => void }) {
             </label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
+              value={loading ? "" : email}
+              readOnly
+              placeholder={loading ? "Loading…" : ""}
+              className={inputClass + " opacity-60 cursor-not-allowed"}
+              disabled
             />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              PHONE
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              ADDRESS
-            </label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              CURRENCY
-            </label>
-            <div className="relative">
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150 appearance-none cursor-pointer"
-              >
-                <option value="thb">{"\uD83C\uDDF9\uD83C\uDDED"} THB ({"\u0E3F"})</option>
-                <option value="eur">{"\uD83C\uDDEB\uD83C\uDDF7"} EUR ({"\u20AC"})</option>
-                <option value="usd">{"\uD83C\uDDFA\uD83C\uDDF8"} USD ($)</option>
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                <svg width="12" height="7" viewBox="0 0 12 7" fill="none">
-                  <path d="M1 1L6 6L11 1" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Danger zone */}
-        <div className="mt-12 px-5 pb-10">
-          <div className="h-px bg-[#E5E7EB]" />
-          <div className="mt-5 flex flex-col items-center gap-1">
-            <button
-              type="button"
-              className="text-[14px] font-medium text-[#DC2626] active:opacity-60 transition-opacity"
-            >
-              Delete shop
-            </button>
-            <span className="text-[12px] text-[#D1D5DB]">
-              This cannot be undone
-            </span>
           </div>
         </div>
       </div>

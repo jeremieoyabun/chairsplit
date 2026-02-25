@@ -44,7 +44,7 @@ export function Team({
   onBarberPress,
   onAddBarberPress,
 }: {
-  onBarberPress?: () => void
+  onBarberPress?: (id: string) => void
   onAddBarberPress?: () => void
 }) {
   const [barbers, setBarbers] = useState<BarberRow[]>([])
@@ -221,7 +221,7 @@ export function Team({
             return (
               <div
                 key={barber.id}
-                onClick={onBarberPress}
+                onClick={() => onBarberPress?.(barber.id)}
                 className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 cursor-pointer active:scale-[0.99] transition-transform"
               >
                 <div className="flex items-center gap-3">

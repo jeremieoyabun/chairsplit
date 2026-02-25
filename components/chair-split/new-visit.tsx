@@ -1,72 +1,163 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, ChevronDown, Search, Check } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+
+type Barber = {
+  id: string
+  full_name: string
+  initials: string
+  color: string
+}
 
 type Service = {
+  id: string
   emoji: string
   name: string
   price: number
+  is_addon: boolean
   selected: boolean
 }
 
-const barbers = [
-  { initials: "KB", name: "Karim B.", color: "#3B82F6" },
-  { initials: "AM", name: "Alex M.", color: "#16A34A" },
-  { initials: "YR", name: "Youssef R.", color: "#F59E0B" },
-]
+const COLORS = ["#3B82F6", "#16A34A", "#F59E0B", "#8B5CF6", "#EC4899", "#0D9488"]
 
-const defaultHaircut: Service[] = [
-  { emoji: "\u2702\uFE0F", name: "Haircut/Fade", price: 400, selected: true },
-  { emoji: "\uD83E\uDE92", name: "Beard Trim", price: 300, selected: true },
-  { emoji: "\u2668\uFE0F", name: "Hot Towel", price: 200, selected: true },
-  { emoji: "\uD83C\uDFA8", name: "Hair Coloring", price: 1500, selected: false },
-  { emoji: "\uD83D\uDC88", name: "Bald Shave", price: 350, selected: false },
-  { emoji: "\uD83D\uDD8C\uFE0F", name: "Beard Color", price: 1000, selected: false },
-  { emoji: "\uD83D\uDC87", name: "Line Up", price: 100, selected: false },
-  { emoji: "\uD83E\uDDF4", name: "Shampoo", price: 300, selected: false },
-]
-
-const defaultFacial: Service[] = [
-  { emoji: "\uD83D\uDC86", name: "Facial Steamer", price: 200, selected: false },
-  { emoji: "\uD83E\uDDD6", name: "Face Mask", price: 300, selected: false },
-  { emoji: "\uD83D\uDC43", name: "Nose Wax", price: 150, selected: false },
-  { emoji: "\uD83D\uDC42", name: "Ear Wax", price: 100, selected: false },
-]
-
-function formatPrice(n: number) {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+function colorFor(id: string) {
+  let h = 0
+  for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h)
+  return COLORS[Math.abs(h) % COLORS.length]
 }
 
-export function NewVisit({ onBack }: { onBack: () => void }) {
-  const [selectedBarber, setSelectedBarber] = useState(0)
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
+function formatPrice(n: number) {
+  return n.toLocaleString("fr-FR")
+}
+
+export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?: () => void }) {
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [barbers, setBarbers] = useState<Barber[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [selectedBarberIdx, setSelectedBarberIdx] = useState(0)
   const [showBarberPicker, setShowBarberPicker] = useState(false)
-  const [haircuts, setHaircuts] = useState(defaultHaircut)
-  const [facials, setFacials] = useState(defaultFacial)
+  const [clientQuery, setClientQuery] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const toggleHaircut = (idx: number) => {
-    setHaircuts((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, selected: !s.selected } : s))
-    )
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+      setShopId(profile.shop_id)
+
+      const [barberRes, svcRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("shop_id", profile.shop_id)
+          .eq("role", "barber")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("services")
+          .select("id, name, price, icon, is_addon")
+          .eq("shop_id", profile.shop_id)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+      ])
+
+      setBarbers(
+        (barberRes.data ?? []).map((b) => ({
+          id: b.id,
+          full_name: b.full_name ?? "Unknown",
+          initials: getInitials(b.full_name ?? "?"),
+          color: colorFor(b.id),
+        }))
+      )
+      setServices(
+        (svcRes.data ?? []).map((s) => ({
+          id: s.id,
+          emoji: s.icon ?? "\u2702\uFE0F",
+          name: s.name,
+          price: s.price ?? 0,
+          is_addon: s.is_addon ?? false,
+          selected: false,
+        }))
+      )
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const toggleService = (id: string) => {
+    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, selected: !s.selected } : s)))
   }
-  const toggleFacial = (idx: number) => {
-    setFacials((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, selected: !s.selected } : s))
-    )
-  }
 
-  const total =
-    haircuts.filter((s) => s.selected).reduce((sum, s) => sum + s.price, 0) +
-    facials.filter((s) => s.selected).reduce((sum, s) => sum + s.price, 0)
-
+  const selected = services.filter((s) => s.selected)
+  const total = selected.reduce((sum, s) => sum + s.price, 0)
   const hasSelection = total > 0
-  const barber = barbers[selectedBarber]
+  const barber = barbers[selectedBarberIdx]
 
-  const renderChip = (service: Service, onClick: () => void) => (
+  const handleConfirm = async () => {
+    if (!barber || !hasSelection || !shopId) return
+    setSaving(true)
+    setError(null)
+    const supabase = createClient()
+
+    const { data: visitData, error: visitErr } = await supabase
+      .from("visits")
+      .insert({
+        shop_id: shopId,
+        barber_id: barber.id,
+        status: "validated",
+        total_amount: total,
+        visited_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single()
+
+    if (visitErr || !visitData) {
+      setError(visitErr?.message ?? "Failed to create visit")
+      setSaving(false)
+      return
+    }
+
+    await supabase.from("visit_services").insert(
+      selected.map((s) => ({
+        visit_id: visitData.id,
+        service_id: s.id,
+        service_name: s.name,
+        price: s.price,
+        icon: s.emoji,
+      }))
+    )
+
+    setSaving(false)
+    if (onConfirm) onConfirm()
+    else onBack()
+  }
+
+  const mainServices = services.filter((s) => !s.is_addon)
+  const addons = services.filter((s) => s.is_addon)
+
+  const renderChip = (service: Service) => (
     <button
-      key={service.name}
+      key={service.id}
       type="button"
-      onClick={onClick}
+      onClick={() => toggleService(service.id)}
       className={`flex flex-col items-start gap-0.5 rounded-[14px] px-3.5 py-3 transition-all active:scale-[0.97] ${
         service.selected
           ? "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
@@ -74,9 +165,7 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
       }`}
     >
       <div className="flex items-center gap-1.5">
-        {service.selected && (
-          <Check className="w-3 h-3 text-[#FFFFFF] shrink-0" strokeWidth={3} />
-        )}
+        {service.selected && <Check className="w-3 h-3 text-[#FFFFFF] shrink-0" strokeWidth={3} />}
         <span className="text-[15px] leading-none">{service.emoji}</span>
         <span
           className={`text-[13px] font-medium leading-tight ${
@@ -97,6 +186,14 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
     </button>
   )
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-full">
+        <span className="text-[14px] text-[#9CA3AF]">Loading…</span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-full">
       {/* Top bar */}
@@ -115,80 +212,83 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* Barber selector */}
-      <div className="px-5 mt-3">
-        <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-2">
-          BARBER
-        </span>
-        <button
-          type="button"
-          onClick={() => setShowBarberPicker(!showBarberPicker)}
-          className="w-full flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform"
-        >
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-            style={{ backgroundColor: barber.color }}
-          >
-            <span className="text-[13px] font-semibold text-[#FFFFFF]">
-              {barber.initials}
-            </span>
-          </div>
-          <span className="text-[16px] font-semibold text-[#111113] flex-1 text-left">
-            {barber.name}
+      {barbers.length > 0 && (
+        <div className="px-5 mt-3">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-2">
+            BARBER
           </span>
-          <ChevronDown className="w-5 h-5 text-[#D1D5DB]" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowBarberPicker(!showBarberPicker)}
+            className="w-full flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform"
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: barber?.color ?? "#3B82F6" }}
+            >
+              <span className="text-[13px] font-semibold text-[#FFFFFF]">{barber?.initials ?? "?"}</span>
+            </div>
+            <span className="text-[16px] font-semibold text-[#111113] flex-1 text-left">
+              {barber?.full_name ?? "Select barber"}
+            </span>
+            <ChevronDown className="w-5 h-5 text-[#D1D5DB]" />
+          </button>
 
-        {/* Barber dropdown */}
-        {showBarberPicker && (
-          <div className="mt-2 rounded-[14px] bg-[#FFFFFF] shadow-[0_4px_20px_rgba(0,0,0,0.1)] overflow-hidden">
-            {barbers.map((b, i) => (
-              <button
-                key={b.initials}
-                type="button"
-                onClick={() => { setSelectedBarber(i); setShowBarberPicker(false) }}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-[#F9FAFB] transition-colors ${
-                  i < barbers.length - 1 ? "border-b border-[#F8F8FA]" : ""
-                } ${i === selectedBarber ? "bg-[#F9FAFB]" : ""}`}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: b.color }}
+          {showBarberPicker && (
+            <div className="mt-2 rounded-[14px] bg-[#FFFFFF] shadow-[0_4px_20px_rgba(0,0,0,0.1)] overflow-hidden">
+              {barbers.map((b, i) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => { setSelectedBarberIdx(i); setShowBarberPicker(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-[#F9FAFB] transition-colors ${
+                    i < barbers.length - 1 ? "border-b border-[#F8F8FA]" : ""
+                  } ${i === selectedBarberIdx ? "bg-[#F9FAFB]" : ""}`}
                 >
-                  <span className="text-[11px] font-semibold text-[#FFFFFF]">
-                    {b.initials}
-                  </span>
-                </div>
-                <span className="text-[14px] font-medium text-[#111113]">
-                  {b.name}
-                </span>
-                {i === selectedBarber && (
-                  <Check className="w-4 h-4 text-[#16A34A] ml-auto" strokeWidth={2.5} />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Services: Haircut & Styling — 2 column grid */}
-      <div className="px-5 mt-6">
-        <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
-          Haircut & Styling
-        </span>
-        <div className="grid grid-cols-2 gap-2.5">
-          {haircuts.map((service, idx) => renderChip(service, () => toggleHaircut(idx)))}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: b.color }}
+                  >
+                    <span className="text-[11px] font-semibold text-[#FFFFFF]">{b.initials}</span>
+                  </div>
+                  <span className="text-[14px] font-medium text-[#111113]">{b.full_name}</span>
+                  {i === selectedBarberIdx && (
+                    <Check className="w-4 h-4 text-[#16A34A] ml-auto" strokeWidth={2.5} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Services: Facial Care — 2 column grid */}
-      <div className="px-5 mt-6">
-        <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
-          Facial Care
-        </span>
-        <div className="grid grid-cols-2 gap-2.5">
-          {facials.map((service, idx) => renderChip(service, () => toggleFacial(idx)))}
+      {/* Main services */}
+      {mainServices.length > 0 && (
+        <div className="px-5 mt-6">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
+            Services
+          </span>
+          <div className="grid grid-cols-2 gap-2.5">{mainServices.map(renderChip)}</div>
         </div>
-      </div>
+      )}
+
+      {/* Add-ons */}
+      {addons.length > 0 && (
+        <div className="px-5 mt-6">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
+            Add-ons
+          </span>
+          <div className="grid grid-cols-2 gap-2.5">{addons.map(renderChip)}</div>
+        </div>
+      )}
+
+      {services.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 px-5">
+          <span className="text-[14px] text-[#9CA3AF] text-center">
+            No services configured yet. Add services in Settings → Service Catalog.
+          </span>
+        </div>
+      )}
 
       {/* Client input */}
       <div className="px-5 mt-6">
@@ -199,17 +299,15 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
           <Search className="w-[18px] h-[18px] text-[#D1D5DB] shrink-0" />
           <input
             type="text"
+            value={clientQuery}
+            onChange={(e) => setClientQuery(e.target.value)}
             placeholder="Search or create..."
             className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
           />
         </div>
-        <button
-          type="button"
-          className="text-[13px] font-semibold text-[#2563EB] mt-2 ml-1 active:opacity-60 transition-opacity"
-        >
-          + Add new client
-        </button>
       </div>
+
+      {error && <p className="text-[13px] text-red-500 mt-3 px-5 text-center">{error}</p>}
 
       {/* Total zone */}
       <div className="px-5 mt-7">
@@ -219,9 +317,7 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
             <span className="text-[36px] font-bold text-[#FFFFFF] leading-none tracking-tight">
               {formatPrice(total)}
             </span>
-            <span className="text-[20px] text-[#6B7280] ml-1 font-normal">
-              {"\u0E3F"}
-            </span>
+            <span className="text-[20px] text-[#6B7280] ml-1 font-normal">{"\u0E3F"}</span>
           </div>
         </div>
       </div>
@@ -230,12 +326,13 @@ export function NewVisit({ onBack }: { onBack: () => void }) {
       <div className="px-5 mt-4 pb-8">
         <button
           type="button"
-          disabled={!hasSelection}
+          onClick={handleConfirm}
+          disabled={!hasSelection || saving || barbers.length === 0}
           className={`w-full h-14 rounded-[14px] bg-[#1A1A1A] text-[16px] font-semibold text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-all ${
-            !hasSelection ? "opacity-30 cursor-not-allowed" : ""
+            !hasSelection || saving || barbers.length === 0 ? "opacity-30 cursor-not-allowed" : ""
           }`}
         >
-          Confirm visit
+          {saving ? "Saving\u2026" : "Confirm visit"}
         </button>
       </div>
     </div>
