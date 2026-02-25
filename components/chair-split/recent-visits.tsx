@@ -91,7 +91,7 @@ export function RecentVisits({
 
       if (error) { console.error("[RecentVisits] visits:", error.message); setLoading(false); return }
 
-      const rows = (raw ?? []) as DbVisit[]
+      const rows = (raw ?? []) as unknown as DbVisit[]
       const display: DisplayVisit[] = rows.map((v) => {
         const barberName = v.barber?.full_name ?? "Unknown"
         return {

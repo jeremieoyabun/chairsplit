@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { Plus, Settings } from "lucide-react"
 
 function TodayIcon({ color }: { color: string }) {
@@ -34,7 +35,11 @@ const leftTabs = [
   { Icon: HistoryIcon, label: "History", index: 1 },
 ]
 
-const rightTabs = [
+type NavTab =
+  | { Icon: ({ color }: { color: string }) => React.JSX.Element; label: string; index: number; isSettings?: false }
+  | { Icon?: undefined; label: string; index: number; isSettings: true }
+
+const rightTabs: NavTab[] = [
   { Icon: StatsIcon, label: "My Stats", index: 2 },
   { label: "Settings", index: 3, isSettings: true },
 ]

@@ -95,7 +95,7 @@ export function BarberHome({
 
       if (error) { console.error("[BarberHome] visits:", error.message); setLoading(false); return }
 
-      const rows = (raw ?? []) as DbVisit[]
+      const rows = (raw ?? []) as unknown as DbVisit[]
       const validated = rows.filter((v) => v.status === "validated")
       const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
       const totalCommission = validated.reduce((s, v) => s + v.commission_amount, 0)

@@ -62,7 +62,7 @@ export function BarberSettings({
           .order("service_id", { ascending: true })
 
         if (rules && rules.length > 0) {
-          const rows: CommissionRow[] = rules.map((r: { rate: number; service_id: string | null; services: { name: string } | null }) => ({
+          const rows: CommissionRow[] = (rules as unknown as { rate: number; service_id: string | null; services: { name: string } | null }[]).map((r) => ({
             label: r.service_id && r.services ? r.services.name : "Default rate",
             value: `${r.rate}%`,
           }))
