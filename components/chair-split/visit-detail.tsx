@@ -37,6 +37,7 @@ export function VisitDetail({
   const [visit, setVisit] = useState<DbVisit | null>(null)
   const [loading, setLoading] = useState(!!visitId)
   const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [commissionRate, setCommissionRate] = useState(30)
 
   useEffect(() => {
@@ -76,8 +77,10 @@ export function VisitDetail({
   const handleValidate = async () => {
     if (!visit) return
     setActionLoading(true)
+    setActionError(null)
     const supabase = createClient()
-    await supabase.from("visits").update({ status: "validated" }).eq("id", visit.id)
+    const { error } = await supabase.from("visits").update({ status: "validated" }).eq("id", visit.id)
+    if (error) { setActionError(error.message); setActionLoading(false); return }
     setVisit((v) => v ? { ...v, status: "validated" } : v)
     setActionLoading(false)
   }
@@ -85,8 +88,10 @@ export function VisitDetail({
   const handleDelete = async () => {
     if (!visit) return
     setActionLoading(true)
+    setActionError(null)
     const supabase = createClient()
-    await supabase.from("visits").delete().eq("id", visit.id)
+    const { error } = await supabase.from("visits").delete().eq("id", visit.id)
+    if (error) { setActionError(error.message); setActionLoading(false); return }
     setActionLoading(false)
     onBack()
   }
@@ -94,8 +99,10 @@ export function VisitDetail({
   const handleCancel = async () => {
     if (!visit) return
     setActionLoading(true)
+    setActionError(null)
     const supabase = createClient()
-    await supabase.from("visits").update({ status: "cancelled" }).eq("id", visit.id)
+    const { error } = await supabase.from("visits").update({ status: "cancelled" }).eq("id", visit.id)
+    if (error) { setActionError(error.message); setActionLoading(false); return }
     setVisit((v) => v ? { ...v, status: "cancelled" } : v)
     setActionLoading(false)
   }
@@ -236,6 +243,11 @@ export function VisitDetail({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Action error */}
+      {actionError && (
+        <p className="mx-5 mt-4 text-[13px] text-red-500 text-center">{actionError}</p>
       )}
 
       {/* Actions */}

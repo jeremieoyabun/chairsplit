@@ -125,6 +125,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         status: "validated",
         total_amount: total,
         visited_at: new Date().toISOString(),
+        ...(clientQuery.trim() ? { client_name: clientQuery.trim() } : {}),
       })
       .select("id")
       .single()
@@ -135,7 +136,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
       return
     }
 
-    await supabase.from("visit_services").insert(
+    const { error: vsErr } = await supabase.from("visit_services").insert(
       selected.map((s) => ({
         visit_id: visitData.id,
         service_id: s.id,
@@ -144,6 +145,14 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         icon: s.emoji,
       }))
     )
+
+    if (vsErr) {
+      // Visit already created — clean up and surface error
+      await supabase.from("visits").delete().eq("id", visitData.id)
+      setError("Failed to save services. Please try again.")
+      setSaving(false)
+      return
+    }
 
     setSaving(false)
     if (onConfirm) onConfirm()

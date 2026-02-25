@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,11 +20,31 @@ function getInitials(name: string | null): string {
 }
 
 export async function GET(req: NextRequest) {
+  // Auth check — user must own the requested shop
+  const cookieStore = await cookies()
+  const supabaseUser = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  )
+  const { data: { user } } = await supabaseUser.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
   const month = req.nextUrl.searchParams.get("month") // YYYY-MM
   const shopId = req.nextUrl.searchParams.get("shopId")
 
   if (!month || !shopId) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 })
+  }
+
+  // Verify requesting user belongs to this shop
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("shop_id, role")
+    .eq("id", user.id)
+    .single()
+  if (!profile || profile.shop_id !== shopId || profile.role !== "owner") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const [y, m] = month.split("-").map(Number)
@@ -69,8 +91,8 @@ export async function GET(req: NextRequest) {
     .select("barber_id, total_amount")
     .eq("shop_id", shopId)
     .eq("status", "validated")
-    .gte("created_at", start)
-    .lt("created_at", end)
+    .gte("visited_at", start)
+    .lt("visited_at", end)
 
   const statsMap: Record<string, { revenue: number; visits: number }> = {}
   for (const v of visits ?? []) {

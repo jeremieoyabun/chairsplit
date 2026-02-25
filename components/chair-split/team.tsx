@@ -91,8 +91,8 @@ export function Team({
         .select("barber_id, total_amount")
         .eq("shop_id", shopId)
         .eq("status", "validated")
-        .gte("created_at", start)
-        .lt("created_at", end)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
 
       // Load commission rules
       const { data: rules } = await supabase

@@ -68,6 +68,11 @@ export function AddBarber({
       setError("Name and email are required.")
       return
     }
+    const rateNum = parseInt(rate, 10)
+    if (isNaN(rateNum) || rateNum < 0 || rateNum > 100) {
+      setError("Commission rate must be between 0 and 100.")
+      return
+    }
     if (!shopId) return
     setError(null)
     setSending(true)

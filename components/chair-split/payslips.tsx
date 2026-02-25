@@ -106,8 +106,8 @@ export function Payslips({ onBack }: { onBack: () => void }) {
         .select("barber_id, total_amount")
         .eq("shop_id", profile.shop_id)
         .eq("status", "validated")
-        .gte("created_at", start)
-        .lt("created_at", end)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
 
       // Aggregate per barber
       const statsMap: Record<string, { revenue: number; visits: number }> = {}

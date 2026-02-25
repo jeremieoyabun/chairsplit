@@ -324,9 +324,7 @@ export default function Page() {
           onBack={() => setScreen("barber-home")}
           onSignOut={handleSignOut}
         />
-      ) : (
-        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="draft" />
-      )}
+      ) : null}
     </PhoneFrame>
   )
 }
