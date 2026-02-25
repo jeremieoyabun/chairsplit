@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   title: 'ChairSplit - Barbershop Management',
   description: 'Track visits, commissions, and finances for your barbershop.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/Favicon.png',
+    apple: '/Favicon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
