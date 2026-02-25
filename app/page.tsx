@@ -60,6 +60,7 @@ export default function Page() {
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null)
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const [pendingPlan, setPendingPlan] = useState<{ plan: string; billing: string } | null>(null)
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -68,19 +69,40 @@ export default function Page() {
     return () => clearTimeout(t)
   }, [notification])
 
-  // Handle URL params from Stripe / Google OAuth / password reset
+  // Handle URL params from Stripe / Google OAuth / password reset / plan pre-selection
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const stripe = params.get("stripe")
     const google = params.get("google")
     const reset = params.get("reset")
+    const plan = params.get("plan")
+    const billing = params.get("billing") ?? "monthly"
     if (stripe === "success") setNotification({ type: "success", message: "Subscription activated!" })
     else if (stripe === "canceled") setNotification({ type: "info", message: "Checkout canceled." })
     else if (google === "connected") setNotification({ type: "success", message: "Google Calendar connected!" })
     else if (google === "error") setNotification({ type: "error", message: "Could not connect Google Calendar." })
     else if (reset === "true") setScreen("reset-password")
-    if (stripe || google || reset) window.history.replaceState({}, "", "/")
+    if (plan === "starter" || plan === "pro") setPendingPlan({ plan, billing })
+    if (stripe || google || reset || plan) window.history.replaceState({}, "", "/")
   }, [])
+
+  // Auto-trigger Stripe Checkout when user reaches home with a pre-selected plan
+  useEffect(() => {
+    if (screen !== "home" || !pendingPlan) return
+    const { plan, billing } = pendingPlan
+    setPendingPlan(null)
+    fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan, billing }),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.url) window.location.href = json.url
+        else setNotification({ type: "error", message: json.error ?? "Checkout unavailable" })
+      })
+      .catch(() => setNotification({ type: "error", message: "Checkout unavailable" }))
+  }, [screen, pendingPlan])
 
   // Restore session on mount — if already logged in, skip login screen
   useEffect(() => {
@@ -194,6 +216,7 @@ export default function Page() {
         <Signup
           onSignup={() => setScreen("role-select")}
           onLoginPress={() => setScreen("login")}
+          pendingPlan={pendingPlan?.plan}
         />
       ) : screen === "role-select" ? (
         <RoleSelect onSelect={(role) => {

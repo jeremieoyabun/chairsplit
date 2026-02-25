@@ -9,9 +9,11 @@ const inputClass =
 export function Signup({
   onSignup,
   onLoginPress,
+  pendingPlan,
 }: {
   onSignup: () => void
   onLoginPress: () => void
+  pendingPlan?: string
 }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -119,6 +121,16 @@ export function Signup({
 
       {/* Form */}
       <div className="w-full mt-9 px-9 flex flex-col pb-12">
+        {pendingPlan && (
+          <div className="w-full bg-[#EFF6FF] border border-[#BFDBFE] rounded-[14px] px-[18px] py-3.5 mb-6">
+            <span className="text-[13px] font-semibold text-[#2563EB] block">
+              {pendingPlan === "pro" ? "Pro plan selected" : "Starter plan selected"}
+            </span>
+            <span className="text-[12px] text-[#6B7280] block mt-0.5">
+              {"You'll be taken to checkout right after signup."}
+            </span>
+          </div>
+        )}
         <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2">
           Your name
         </label>
