@@ -7,6 +7,8 @@ import type { UserRole } from "@/lib/types"
 const inputClass =
   "w-full h-[52px] bg-[#FFFFFF] rounded-[14px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[18px] text-[15px] text-[#111113] font-sans placeholder:text-[#9CA3AF] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
+type Step = "login" | "forgot" | "sent"
+
 export function Login({
   onLogin,
   onSignupPress,
@@ -14,8 +16,10 @@ export function Login({
   onLogin: (role: UserRole, shopId: string | null) => void
   onSignupPress?: () => void
 }) {
+  const [step, setStep] = useState<Step>("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [resetEmail, setResetEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,6 +83,96 @@ export function Login({
     onLogin((profile?.role as UserRole) ?? "barber", profile?.shop_id ?? null)
   }
 
+  const handleForgotPassword = async () => {
+    if (!resetEmail) { setError("Enter your email address"); return }
+    setError(null)
+    setLoading(true)
+    const supabase = createClient()
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: typeof window !== "undefined" ? `${window.location.origin}/?reset=true` : undefined,
+    })
+    setLoading(false)
+    if (resetErr) { setError(resetErr.message); return }
+    setStep("sent")
+  }
+
+  const Logo = () => (
+    <div className="flex flex-col items-center">
+      <img src="/images/logo-chairsplit.png" alt="chairsplit" className="h-[32px] w-auto" />
+      <div className="w-8 h-[2.5px] bg-[#1A1A1A] rounded-full mt-4" />
+      <span className="text-[13px] text-[#9CA3AF] mt-4 font-sans">
+        The operational system for barbershops
+      </span>
+    </div>
+  )
+
+  // Forgot password — sent confirmation
+  if (step === "sent") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-9" style={{ background: "linear-gradient(180deg, #FFFFFF 0%, #F4F4F6 100%)" }}>
+        <Logo />
+        <div className="w-full mt-[52px] flex flex-col items-center text-center">
+          <div className="w-16 h-16 rounded-full bg-[#ECFDF5] flex items-center justify-center mb-5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <h2 className="text-[22px] font-bold text-[#111113]">Check your email</h2>
+          <p className="text-[14px] text-[#6B7280] mt-3 leading-relaxed">
+            {"We\u2019ve sent a password reset link to "}
+            <span className="font-semibold text-[#111113]">{resetEmail}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => { setStep("login"); setError(null) }}
+            className="mt-8 text-[14px] font-semibold text-[#2563EB] active:opacity-60 transition-opacity"
+          >
+            {"Back to sign in"}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Forgot password form
+  if (step === "forgot") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-9" style={{ background: "linear-gradient(180deg, #FFFFFF 0%, #F4F4F6 100%)" }}>
+        <Logo />
+        <div className="w-full mt-[52px] flex flex-col">
+          <h2 className="text-[20px] font-bold text-[#111113] mb-1">Reset password</h2>
+          <p className="text-[13px] text-[#9CA3AF] mb-6">{"Enter your email and we\u2019ll send you a reset link."}</p>
+          <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2">Email</label>
+          <input
+            type="email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            placeholder="email@example.com"
+            className={inputClass}
+            onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+          />
+          {error && <p className="text-[13px] text-red-500 mt-3 text-center">{error}</p>}
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={loading}
+            className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[16px] font-semibold mt-7 shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-transform disabled:opacity-50"
+          >
+            {loading ? "Sending…" : "Send reset link"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setStep("login"); setError(null) }}
+            className="text-[13px] text-[#6B7280] font-sans mt-5 mx-auto active:opacity-60 transition-opacity"
+          >
+            {"Back to sign in"}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Normal login
   return (
     <div
       className="flex flex-col items-center justify-center h-full px-9"
@@ -86,18 +180,7 @@ export function Login({
         background: "linear-gradient(180deg, #FFFFFF 0%, #F4F4F6 100%)",
       }}
     >
-      {/* Logo */}
-      <div className="flex flex-col items-center">
-        <img
-          src="/images/logo-chairsplit.png"
-          alt="chairsplit"
-          className="h-[32px] w-auto"
-        />
-        <div className="w-8 h-[2.5px] bg-[#1A1A1A] rounded-full mt-4" />
-        <span className="text-[13px] text-[#9CA3AF] mt-4 font-sans">
-          The operational system for barbershops
-        </span>
-      </div>
+      <Logo />
 
       {/* Form */}
       <div className="w-full mt-[52px] flex flex-col">
@@ -139,6 +222,7 @@ export function Login({
 
         <button
           type="button"
+          onClick={() => { setStep("forgot"); setResetEmail(email); setError(null) }}
           className="text-[13px] text-[#2563EB] font-sans mt-5 mx-auto active:opacity-60 transition-opacity"
         >
           Forgot password?

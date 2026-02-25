@@ -33,7 +33,8 @@ export function SetupShop({ onComplete }: { onComplete: () => void }) {
     setLoading(true)
 
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user ?? null
     if (!user) { setError("Not authenticated."); setLoading(false); return }
 
     // 1. Create the shop

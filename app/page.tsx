@@ -50,8 +50,30 @@ type Screen =
   | "agenda"
   | "barber-home" | "barber-new-visit" | "barber-history" | "barber-stats" | "barber-settings"
 
+type Notification = { type: "success" | "info" | "error"; message: string }
+
 export default function Page() {
   const [screen, setScreen] = useState<Screen>("login")
+  const [notification, setNotification] = useState<Notification | null>(null)
+
+  // Auto-dismiss notification
+  useEffect(() => {
+    if (!notification) return
+    const t = setTimeout(() => setNotification(null), 4000)
+    return () => clearTimeout(t)
+  }, [notification])
+
+  // Handle URL params from Stripe / Google OAuth returns
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const stripe = params.get("stripe")
+    const google = params.get("google")
+    if (stripe === "success") setNotification({ type: "success", message: "Subscription activated!" })
+    else if (stripe === "canceled") setNotification({ type: "info", message: "Checkout canceled." })
+    else if (google === "connected") setNotification({ type: "success", message: "Google Calendar connected!" })
+    else if (google === "error") setNotification({ type: "error", message: "Could not connect Google Calendar." })
+    if (stripe || google) window.history.replaceState({}, "", "/")
+  }, [])
 
   // Restore session on mount — if already logged in, skip login screen
   useEffect(() => {
@@ -123,6 +145,39 @@ export default function Page() {
 
   return (
     <PhoneFrame>
+      {/* URL-param notification toast */}
+      {notification && (
+        <div
+          className={`absolute top-4 left-4 right-4 z-[100] rounded-[14px] px-4 py-3 shadow-lg flex items-center gap-2 transition-all ${
+            notification.type === "success"
+              ? "bg-[#ECFDF5] border border-[#BBF7D0]"
+              : notification.type === "error"
+              ? "bg-[#FEF2F2] border border-[#FECACA]"
+              : "bg-[#EFF6FF] border border-[#BFDBFE]"
+          }`}
+          style={{ animation: "none" }}
+        >
+          <span
+            className={`text-[13px] font-semibold flex-1 ${
+              notification.type === "success"
+                ? "text-[#16A34A]"
+                : notification.type === "error"
+                ? "text-[#DC2626]"
+                : "text-[#2563EB]"
+            }`}
+          >
+            {notification.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setNotification(null)}
+            className="text-[#9CA3AF] text-[16px] leading-none"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {screen === "login" ? (
         <Login
           onLogin={handleLogin}

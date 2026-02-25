@@ -1,8 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
-type Visit = {
+type DbVisit = {
+  id: string
+  total_amount: number
+  status: string
+  visited_at: string
+  barber_id: string
+  clients: { name: string } | null
+  visit_services: { service_name: string }[]
+  barber: { full_name: string } | null
+}
+
+type DisplayVisit = {
+  id: string
   initials: string
   name: string
   services: string
@@ -14,38 +27,25 @@ type Visit = {
 
 type DayGroup = {
   label: string
-  visits: Visit[]
+  dateStr: string
+  visits: DisplayVisit[]
 }
 
-const days: DayGroup[] = [
-  {
-    label: "MON FEB 9",
-    visits: [
-      { initials: "KB", name: "Karim B.", services: "Haircut/Fade, Beard Trim, Hot Towel", amount: "900", time: "14:32", color: "#3B82F6", status: "validated" },
-      { initials: "AM", name: "Alex M.", services: "Haircut/Fade", amount: "400", time: "15:10", color: "#16A34A", status: "validated" },
-      { initials: "KB", name: "Karim B.", services: "Haircut/Fade, Beard Trim", amount: "700", time: "11:20", color: "#3B82F6", status: "draft" },
-      { initials: "YR", name: "Youssef R.", services: "Bald Head Shave, Shampoo", amount: "650", time: "10:05", color: "#F59E0B", status: "validated" },
-      { initials: "AM", name: "Alex M.", services: "Haircut/Fade, Beard Coloring", amount: "1 400", time: "09:30", color: "#16A34A", status: "validated" },
-    ],
-  },
-  {
-    label: "SUN FEB 8",
-    visits: [
-      { initials: "KB", name: "Karim B.", services: "Haircut/Fade, Beard Trim, Facial Steamer", amount: "900", time: "16:00", color: "#3B82F6", status: "validated" },
-      { initials: "AM", name: "Alex M.", services: "Bald Head Shave, Nose Wax", amount: "500", time: "14:00", color: "#16A34A", status: "cancelled" },
-      { initials: "YR", name: "Youssef R.", services: "Haircut/Fade, Shampoo, Face Mask", amount: "1 000", time: "11:00", color: "#F59E0B", status: "validated" },
-      { initials: "KB", name: "Karim B.", services: "Hair Coloring, Beard Coloring", amount: "2 500", time: "09:00", color: "#3B82F6", status: "validated" },
-    ],
-  },
-]
+const COLORS = ["#3B82F6", "#16A34A", "#F59E0B", "#8B5CF6", "#EC4899", "#0D9488"]
 
-const segments = ["Day", "Week", "Month"]
+function colorFor(id: string) {
+  let h = 0
+  for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h)
+  return COLORS[Math.abs(h) % COLORS.length]
+}
 
-const kpis = [
-  { value: "9", label: "visits" },
-  { value: "8 200", label: "revenue", hasBaht: true },
-  { value: "2 625", label: "comm.", hasBaht: true },
-]
+function getInitials(name: string) {
+  return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
+}
+
+function fmt(n: number) {
+  return Math.round(n).toLocaleString("fr-FR")
+}
 
 const statusConfig = {
   validated: { label: "Validated", bg: "#ECFDF5", text: "#16A34A" },
@@ -53,19 +53,126 @@ const statusConfig = {
   cancelled: { label: "Cancelled", bg: "#FEF2F2", text: "#DC2626" },
 }
 
+const segments = ["Day", "Week", "Month"]
+
+function getRange(segment: number): { start: string; end: string } {
+  const now = new Date()
+  if (segment === 0) {
+    const start = new Date(now); start.setHours(0, 0, 0, 0)
+    const end = new Date(start); end.setDate(end.getDate() + 1)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }
+  if (segment === 1) {
+    const day = now.getDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() + diff)
+    const end = new Date(start); end.setDate(end.getDate() + 7)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
 export function History({ onVisitPress }: { onVisitPress?: () => void }) {
   const [activeSegment, setActiveSegment] = useState(1)
+  const [dayGroups, setDayGroups] = useState<DayGroup[]>([])
+  const [kpis, setKpis] = useState({ visits: 0, revenue: 0, commissions: 0 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("shop_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.shop_id) { setLoading(false); return }
+
+      const { start, end } = getRange(activeSegment)
+
+      // Load commission rules for commission KPI
+      const { data: rules } = await supabase
+        .from("commission_rules")
+        .select("barber_id, rate")
+        .eq("shop_id", profile.shop_id)
+
+      const ruleMap: Record<string, number> = {}
+      for (const r of rules ?? []) {
+        if (r.barber_id) ruleMap[r.barber_id] = r.rate
+      }
+      const globalRate = rules?.find((r) => !r.barber_id)?.rate ?? 30
+
+      // Load visits
+      const { data: raw, error } = await supabase
+        .from("visits")
+        .select("id, total_amount, status, visited_at, barber_id, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
+        .eq("shop_id", profile.shop_id)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
+        .order("visited_at", { ascending: false })
+
+      if (error) { console.error("[History] visits:", error.message); setLoading(false); return }
+
+      const rows = (raw ?? []) as unknown as DbVisit[]
+
+      // KPIs — revenue and commissions from validated only
+      const validated = rows.filter((v) => v.status === "validated")
+      const totalRevenue = validated.reduce((s, v) => s + (v.total_amount ?? 0), 0)
+      const totalCommissions = validated.reduce((s, v) => {
+        const rate = ruleMap[v.barber_id] ?? globalRate
+        return s + (v.total_amount ?? 0) * rate / 100
+      }, 0)
+      setKpis({ visits: rows.length, revenue: totalRevenue, commissions: totalCommissions })
+
+      // Group by day descending
+      const grouped: Record<string, DbVisit[]> = {}
+      for (const v of rows) {
+        const day = (v.visited_at ?? "").split("T")[0]
+        if (!day) continue
+        if (!grouped[day]) grouped[day] = []
+        grouped[day].push(v)
+      }
+
+      const groups: DayGroup[] = Object.entries(grouped)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([dateStr, visits]) => ({
+          dateStr,
+          label: new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", {
+            weekday: "short", month: "short", day: "numeric",
+          }).toUpperCase(),
+          visits: visits.map((v) => {
+            const barberName = v.barber?.full_name ?? "Unknown"
+            return {
+              id: v.id,
+              initials: getInitials(barberName),
+              name: v.clients?.name ?? "Walk-in",
+              services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+              amount: fmt(v.total_amount ?? 0),
+              time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              color: colorFor(barberName),
+              status: v.status as "validated" | "draft" | "cancelled",
+            }
+          }),
+        }))
+
+      setDayGroups(groups)
+      setLoading(false)
+    }
+    load()
+  }, [activeSegment])
 
   return (
     <div className="flex flex-col min-h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-2">
-        <h1 className="text-[28px] font-bold text-[#111113] leading-tight">
-          History
-        </h1>
-        <button type="button" className="text-[14px] font-semibold text-[#2563EB]">
-          Export
-        </button>
+        <h1 className="text-[28px] font-bold text-[#111113] leading-tight">History</h1>
       </div>
 
       {/* Segment control */}
@@ -88,24 +195,22 @@ export function History({ onVisitPress }: { onVisitPress?: () => void }) {
         </div>
       </div>
 
-      {/* Dark KPI banner — centered content */}
+      {/* Dark KPI banner */}
       <div className="mx-5 mt-4">
         <div className="rounded-[20px] bg-[#1A1A1A] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
           <div className="flex gap-2">
-            {kpis.map((kpi) => (
+            {[
+              { value: loading ? "—" : String(kpis.visits), label: "visits" },
+              { value: loading ? "—" : fmt(kpis.revenue), label: "revenue", hasBaht: true },
+              { value: loading ? "—" : fmt(kpis.commissions), label: "comm.", hasBaht: true },
+            ].map((kpi) => (
               <div
                 key={kpi.label}
                 className="flex-1 rounded-[14px] bg-[rgba(255,255,255,0.06)] py-3.5 text-center"
               >
                 <div className="flex items-baseline justify-center whitespace-nowrap">
-                  <span className="text-[22px] font-bold text-[#FFFFFF] leading-none">
-                    {kpi.value}
-                  </span>
-                  {kpi.hasBaht && (
-                    <span className="text-[14px] text-[#6B7280] ml-0.5">
-                      {"\u0E3F"}
-                    </span>
-                  )}
+                  <span className="text-[22px] font-bold text-[#FFFFFF] leading-none">{kpi.value}</span>
+                  {kpi.hasBaht && <span className="text-[14px] text-[#6B7280] ml-0.5">{"\u0E3F"}</span>}
                 </div>
                 <span className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#6B7280] block mt-1.5">
                   {kpi.label}
@@ -117,66 +222,61 @@ export function History({ onVisitPress }: { onVisitPress?: () => void }) {
       </div>
 
       {/* Grouped visits */}
-      {days.map((day) => (
-        <div key={day.label}>
-          <div className="px-5 mt-7 mb-3">
-            <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF]">
-              {day.label}
-            </span>
-          </div>
-
-          <div className="px-5 flex flex-col gap-2.5">
-            {day.visits.map((visit, i) => {
-              const badge = statusConfig[visit.status]
-              return (
-                <div
-                  key={`${visit.initials}-${visit.time}-${i}`}
-                  onClick={onVisitPress}
-                  className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
-                >
+      {!loading && dayGroups.length === 0 ? (
+        <div className="flex items-center justify-center py-16">
+          <span className="text-[14px] text-[#9CA3AF]">No visits for this period</span>
+        </div>
+      ) : (
+        dayGroups.map((day) => (
+          <div key={day.dateStr}>
+            <div className="px-5 mt-7 mb-3">
+              <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF]">
+                {day.label}
+              </span>
+            </div>
+            <div className="px-5 flex flex-col gap-2.5">
+              {day.visits.map((visit, i) => {
+                const badge = statusConfig[visit.status] ?? statusConfig.validated
+                return (
                   <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: visit.color }}
+                    key={`${visit.id}-${i}`}
+                    onClick={onVisitPress}
+                    className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
                   >
-                    <span className="text-[14px] font-semibold text-[#FFFFFF]">
-                      {visit.initials}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[15px] font-semibold text-[#111113] block leading-tight">
-                      {visit.name}
-                    </span>
-                    <span className="text-[13px] text-[#9CA3AF] block truncate mt-0.5">
-                      {visit.services}
-                    </span>
-                  </div>
-
-                  <div className="text-right shrink-0 flex flex-col items-end">
-                    <div className="flex items-baseline justify-end">
-                      <span className="text-[17px] font-bold text-[#111113] leading-tight">
-                        {visit.amount}
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: visit.color }}
+                    >
+                      <span className="text-[14px] font-semibold text-[#FFFFFF]">{visit.initials}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[15px] font-semibold text-[#111113] block leading-tight">
+                        {visit.name}
                       </span>
-                      <span className="text-[13px] text-[#9CA3AF] ml-0.5">
-                        {"\u0E3F"}
+                      <span className="text-[13px] text-[#9CA3AF] block truncate mt-0.5">
+                        {visit.services}
                       </span>
                     </div>
-                    <span className="text-[11px] text-[#D1D5DB] block mt-0.5">
-                      {visit.time}
-                    </span>
-                    <span
-                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full mt-1 leading-none"
-                      style={{ backgroundColor: badge.bg, color: badge.text }}
-                    >
-                      {badge.label}
-                    </span>
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <div className="flex items-baseline justify-end">
+                        <span className="text-[17px] font-bold text-[#111113] leading-tight">{visit.amount}</span>
+                        <span className="text-[13px] text-[#9CA3AF] ml-0.5">{"\u0E3F"}</span>
+                      </div>
+                      <span className="text-[11px] text-[#D1D5DB] block mt-0.5">{visit.time}</span>
+                      <span
+                        className="text-[9px] font-semibold px-2 py-0.5 rounded-full mt-1 leading-none"
+                        style={{ backgroundColor: badge.bg, color: badge.text }}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   )
 }
