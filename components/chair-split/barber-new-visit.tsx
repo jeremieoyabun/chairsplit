@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, Search } from "lucide-react"
+import { ArrowLeft, Search, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 type DbService = {
@@ -13,6 +13,12 @@ type DbService = {
 }
 
 type Service = DbService & { selected: boolean }
+
+type ClientResult = {
+  id: string
+  name: string
+  phone: string | null
+}
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
@@ -30,11 +36,17 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
   const [barberId, setBarberId] = useState<string | null>(null)
   const [barberName, setBarberName] = useState("")
   const [services, setServices] = useState<Service[]>([])
-  const [clientQuery, setClientQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
   const [noShop, setNoShop] = useState(false)
+
+  // Client lookup
+  const [clientQuery, setClientQuery] = useState("")
+  const [clientResults, setClientResults] = useState<ClientResult[]>([])
+  const [selectedClient, setSelectedClient] = useState<ClientResult | null>(null)
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+  const [clientCreating, setClientCreating] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -69,6 +81,51 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
     load()
   }, [])
 
+  // Debounced client search
+  useEffect(() => {
+    if (!shopId || selectedClient) return
+    const q = clientQuery.trim()
+    if (q.length < 1) { setClientResults([]); setClientDropdownOpen(false); return }
+
+    const timer = setTimeout(async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name, phone")
+        .eq("shop_id", shopId)
+        .ilike("name", `%${q}%`)
+        .limit(6)
+      setClientResults(data ?? [])
+      setClientDropdownOpen(true)
+    }, 280)
+
+    return () => clearTimeout(timer)
+  }, [clientQuery, shopId, selectedClient])
+
+  const handleSelectClient = (c: ClientResult) => {
+    setSelectedClient(c)
+    setClientQuery("")
+    setClientResults([])
+    setClientDropdownOpen(false)
+  }
+
+  const handleCreateClient = async () => {
+    if (!shopId || !clientQuery.trim()) return
+    setClientCreating(true)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({ shop_id: shopId, name: clientQuery.trim() })
+      .select("id, name, phone")
+      .single()
+    setClientCreating(false)
+    if (error || !data) { console.error("[BarberNewVisit] create client:", error?.message); return }
+    setSelectedClient(data)
+    setClientQuery("")
+    setClientResults([])
+    setClientDropdownOpen(false)
+  }
+
   const toggle = (id: string) => {
     setServices((prev) => prev.map((s) => s.id === id ? { ...s, selected: !s.selected } : s))
   }
@@ -90,6 +147,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
         shop_id: shopId,
         status: "draft",
         visited_at: new Date().toISOString(),
+        ...(selectedClient ? { client_id: selectedClient.id } : {}),
       })
       .select("id")
       .single()
@@ -227,21 +285,97 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* Client input */}
+      {/* Client lookup */}
       <div className="px-5 mt-6">
         <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-2">
           CLIENT (OPTIONAL)
         </span>
-        <div className="flex items-center gap-3 rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5">
-          <Search className="w-[18px] h-[18px] text-[#D1D5DB] shrink-0" />
-          <input
-            type="text"
-            value={clientQuery}
-            onChange={(e) => setClientQuery(e.target.value)}
-            placeholder="Search or type name..."
-            className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
-          />
-        </div>
+
+        {selectedClient ? (
+          /* Selected client pill */
+          <div className="flex items-center gap-3 rounded-[14px] bg-[#ECFDF5] border border-[#BBF7D0] px-4 py-3">
+            <div className="w-7 h-7 rounded-full bg-[#16A34A] flex items-center justify-center shrink-0">
+              <span className="text-[10px] font-semibold text-white">{getInitials(selectedClient.name)}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-medium text-[#15803D] truncate">{selectedClient.name}</p>
+              {selectedClient.phone && (
+                <p className="text-[12px] text-[#16A34A]/70 truncate">{selectedClient.phone}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedClient(null)}
+              className="w-6 h-6 rounded-full bg-[#BBF7D0] flex items-center justify-center shrink-0"
+              aria-label="Remove client"
+            >
+              <X className="w-3 h-3 text-[#15803D]" />
+            </button>
+          </div>
+        ) : (
+          /* Search input + dropdown */
+          <div className="relative">
+            <div className="flex items-center gap-3 rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5">
+              <Search className="w-[18px] h-[18px] text-[#D1D5DB] shrink-0" />
+              <input
+                type="text"
+                value={clientQuery}
+                onChange={(e) => setClientQuery(e.target.value)}
+                placeholder="Search or type name…"
+                className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
+              />
+              {clientQuery.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setClientQuery(""); setClientResults([]); setClientDropdownOpen(false) }}
+                  className="shrink-0"
+                  aria-label="Clear"
+                >
+                  <X className="w-4 h-4 text-[#9CA3AF]" />
+                </button>
+              )}
+            </div>
+
+            {clientDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-[#FFFFFF] rounded-[14px] shadow-[0_8px_24px_rgba(0,0,0,0.10)] border border-[#E5E7EB] overflow-hidden z-20">
+                {clientResults.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleSelectClient(c)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#F9FAFB] active:bg-[#F3F4F6] transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#E5E7EB] flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-semibold text-[#6B7280]">{getInitials(c.name)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-medium text-[#111113] truncate">{c.name}</p>
+                      {c.phone && <p className="text-[12px] text-[#9CA3AF] truncate">{c.phone}</p>}
+                    </div>
+                  </button>
+                ))}
+
+                {clientQuery.trim().length > 0 && !clientResults.some(
+                  (c) => c.name.toLowerCase() === clientQuery.trim().toLowerCase()
+                ) && (
+                  <button
+                    type="button"
+                    onClick={handleCreateClient}
+                    disabled={clientCreating}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border-t border-[#F3F4F6] transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#1A1A1A] flex items-center justify-center shrink-0">
+                      <span className="text-[14px] text-white font-bold leading-none">+</span>
+                    </div>
+                    <p className="text-[14px] font-medium text-[#1A1A1A]">
+                      {clientCreating ? "Creating…" : `Create "${clientQuery.trim()}"`}
+                    </p>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Total zone */}

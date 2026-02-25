@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, ChevronDown, Search, Check } from "lucide-react"
+import { ArrowLeft, ChevronDown, Search, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 type Barber = {
@@ -19,6 +19,8 @@ type Service = {
   is_addon: boolean
   selected: boolean
 }
+
+type ClientResult = { id: string; name: string; phone: string | null }
 
 const COLORS = ["#3B82F6", "#16A34A", "#F59E0B", "#8B5CF6", "#EC4899", "#0D9488"]
 
@@ -44,7 +46,14 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
   const [services, setServices] = useState<Service[]>([])
   const [selectedBarberIdx, setSelectedBarberIdx] = useState(0)
   const [showBarberPicker, setShowBarberPicker] = useState(false)
+
+  // Client lookup
   const [clientQuery, setClientQuery] = useState("")
+  const [clientResults, setClientResults] = useState<ClientResult[]>([])
+  const [selectedClient, setSelectedClient] = useState<ClientResult | null>(null)
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+  const [clientCreating, setClientCreating] = useState(false)
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -102,6 +111,54 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
     load()
   }, [])
 
+  // Debounced client search
+  useEffect(() => {
+    if (!shopId || !clientQuery.trim() || selectedClient) {
+      setClientResults([])
+      setClientDropdownOpen(false)
+      return
+    }
+    const timer = setTimeout(async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name, phone")
+        .eq("shop_id", shopId)
+        .ilike("name", `%${clientQuery.trim()}%`)
+        .limit(6)
+      setClientResults(data ?? [])
+      setClientDropdownOpen(true)
+    }, 280)
+    return () => clearTimeout(timer)
+  }, [clientQuery, shopId, selectedClient])
+
+  const handleSelectClient = (c: ClientResult) => {
+    setSelectedClient(c)
+    setClientQuery("")
+    setClientDropdownOpen(false)
+    setClientResults([])
+  }
+
+  const handleCreateClient = async () => {
+    if (!shopId || !clientQuery.trim()) return
+    setClientCreating(true)
+    const supabase = createClient()
+    const { data, error: err } = await supabase
+      .from("clients")
+      .insert({ shop_id: shopId, name: clientQuery.trim() })
+      .select("id, name, phone")
+      .single()
+    setClientCreating(false)
+    if (data) {
+      setSelectedClient(data)
+      setClientQuery("")
+      setClientDropdownOpen(false)
+      setClientResults([])
+    } else if (err) {
+      setError(err.message)
+    }
+  }
+
   const toggleService = (id: string) => {
     setServices((prev) => prev.map((s) => (s.id === id ? { ...s, selected: !s.selected } : s)))
   }
@@ -125,6 +182,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         status: "validated",
         total_amount: total,
         visited_at: new Date().toISOString(),
+        ...(selectedClient ? { client_id: selectedClient.id } : {}),
       })
       .select("id")
       .single()
@@ -146,7 +204,6 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
     )
 
     if (vsErr) {
-      // Visit already created — clean up and surface error
       await supabase.from("visits").delete().eq("id", visitData.id)
       setError("Failed to save services. Please try again.")
       setSaving(false)
@@ -303,16 +360,86 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-2">
           CLIENT (OPTIONAL)
         </span>
-        <div className="flex items-center gap-3 rounded-[14px] bg-[#FFFFFF] shadow-[0_1px_6px_rgba(0,0,0,0.04)] px-4 py-3.5">
-          <Search className="w-[18px] h-[18px] text-[#D1D5DB] shrink-0" />
-          <input
-            type="text"
-            value={clientQuery}
-            onChange={(e) => setClientQuery(e.target.value)}
-            placeholder="Search or create..."
-            className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
-          />
-        </div>
+
+        {selectedClient ? (
+          <div className="flex items-center gap-3 rounded-[14px] bg-[#ECFDF5] border border-[#BBF7D0] px-4 py-3.5">
+            <div className="w-7 h-7 rounded-full bg-[#16A34A] flex items-center justify-center shrink-0">
+              <span className="text-[10px] font-semibold text-[#FFFFFF]">
+                {getInitials(selectedClient.name)}
+              </span>
+            </div>
+            <span className="flex-1 text-[14px] font-semibold text-[#111113]">{selectedClient.name}</span>
+            <button
+              type="button"
+              onClick={() => setSelectedClient(null)}
+              className="text-[#9CA3AF] active:text-[#111113] transition-colors"
+              aria-label="Remove client"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <div className="flex items-center gap-3 rounded-[14px] bg-[#FFFFFF] shadow-[0_1px_6px_rgba(0,0,0,0.04)] px-4 py-3.5">
+              <Search className="w-[18px] h-[18px] text-[#D1D5DB] shrink-0" />
+              <input
+                type="text"
+                value={clientQuery}
+                onChange={(e) => setClientQuery(e.target.value)}
+                placeholder="Search or create client…"
+                className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
+              />
+              {clientQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => { setClientQuery(""); setClientDropdownOpen(false) }}
+                  className="text-[#D1D5DB] active:text-[#9CA3AF]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {clientDropdownOpen && (clientResults.length > 0 || clientQuery.trim()) && (
+              <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 rounded-[14px] bg-[#FFFFFF] shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden">
+                {clientResults.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleSelectClient(c)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#F9FAFB] active:bg-[#F3F4F6] transition-colors border-b border-[#F8F8FA] last:border-0"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#E5E7EB] flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-semibold text-[#6B7280]">
+                        {getInitials(c.name)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[14px] font-medium text-[#111113] block">{c.name}</span>
+                      {c.phone && <span className="text-[12px] text-[#9CA3AF]">{c.phone}</span>}
+                    </div>
+                  </button>
+                ))}
+
+                {!clientResults.some(c => c.name.toLowerCase() === clientQuery.trim().toLowerCase()) && clientQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleCreateClient}
+                    disabled={clientCreating}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#F9FAFB] active:bg-[#F3F4F6] transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#EFF6FF] flex items-center justify-center shrink-0">
+                      <span className="text-[14px] text-[#2563EB] font-semibold">+</span>
+                    </div>
+                    <span className="text-[14px] font-medium text-[#2563EB]">
+                      {clientCreating ? "Creating…" : `Create "${clientQuery.trim()}"`}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <p className="text-[13px] text-red-500 mt-3 px-5 text-center">{error}</p>}
