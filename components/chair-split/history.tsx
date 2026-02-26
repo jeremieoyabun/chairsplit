@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbVisit = {
   id: string
@@ -83,25 +84,17 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-
       const { start, end } = getRange(activeSegment)
 
       // Load commission rules for commission KPI
       const { data: rules } = await supabase
         .from("commission_rules")
         .select("barber_id, rate")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
 
       const ruleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
@@ -113,7 +106,7 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
       const { data: raw, error } = await supabase
         .from("visits")
         .select("id, total_amount, status, visited_at, barber_id, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .gte("visited_at", start)
         .lt("visited_at", end)
         .order("visited_at", { ascending: false })

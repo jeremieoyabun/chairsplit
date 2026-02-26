@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 function fmtK(n: number): string {
   if (Math.abs(n) >= 1000) {
@@ -45,25 +46,17 @@ export function Accounting({
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) return
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) return
-
       const { start, end } = monthRange()
 
       // Revenue from validated visits this month
       const { data: visits } = await supabase
         .from("visits")
         .select("total_amount")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .eq("status", "validated")
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -75,7 +68,7 @@ export function Accounting({
       const { data: expenses } = await supabase
         .from("expenses")
         .select("amount")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .gte("expense_date", start)
         .lt("expense_date", end)
 
@@ -89,7 +82,7 @@ export function Accounting({
       const { data: allVisits } = await supabase
         .from("visits")
         .select("total_amount, visited_at")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .eq("status", "validated")
         .gte("visited_at", chartStart)
 

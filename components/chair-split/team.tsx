@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { PLAN_LIMITS } from "@/lib/plans"
+import { getShop } from "@/lib/get-shop"
 
 type BarberRow = {
   id: string
@@ -54,18 +55,11 @@ export function Team({
 
   useEffect(() => {
     const load = async () => {
+      const cached = await getShop()
+      if (!cached) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      const shopId = profile.shop_id
+      const shopId = cached.shopId
 
       // Load shop plan
       const { data: shop } = await supabase

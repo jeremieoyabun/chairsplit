@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Bell, Check, Clock, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DateGroup = "Today" | "Yesterday" | "This week" | "Earlier"
 
@@ -58,22 +59,14 @@ export function Notifications({ onBack }: { onBack: () => void }) {
     localStorage.setItem(SEEN_KEY, new Date().toISOString())
 
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-
       const { data: raw } = await supabase
         .from("visits")
         .select("id, total_amount, status, visited_at, clients(name), barber:profiles!barber_id(full_name)")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .order("visited_at", { ascending: false })
         .limit(30)
 

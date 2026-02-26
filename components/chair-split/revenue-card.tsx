@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 function fmt(n: number) {
   return Math.round(n).toLocaleString("fr-FR")
@@ -24,23 +25,15 @@ export function RevenueCard() {
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-
       const { start, end } = todayRange()
       const { data: raw, error } = await supabase
         .from("visits")
         .select("total_amount, commission_amount, status")
-        .eq("shop_id", profile.shop_id)
+        .eq("shop_id", shop.shopId)
         .gte("visited_at", start)
         .lt("visited_at", end)
 

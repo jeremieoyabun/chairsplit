@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { UserRole } from "@/lib/types"
+import { clearShopCache } from "@/lib/get-shop"
 import { PhoneFrame } from "@/components/chair-split/phone-frame"
 import { Header } from "@/components/chair-split/header"
 import { RevenueCard } from "@/components/chair-split/revenue-card"
@@ -137,6 +138,7 @@ export default function Page() {
   }
 
   const handleSignOut = async () => {
+    clearShopCache()
     await createClient().auth.signOut()
     setScreen("login")
   }

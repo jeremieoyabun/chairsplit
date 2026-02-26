@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Bell, ChevronDown, Settings } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
@@ -21,28 +22,20 @@ export function Header({
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) return
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) return
-
-      const { data: shop, error } = await supabase
+      const { data: shopData, error } = await supabase
         .from("shops")
         .select("name, address")
-        .eq("id", profile.shop_id)
+        .eq("id", shop.shopId)
         .single()
 
       if (error) { console.error("[Header] shop:", error.message); return }
-      if (shop) {
-        setShopName(shop.name ?? "")
-        setShopAddress(shop.address ?? "")
+      if (shopData) {
+        setShopName(shopData.name ?? "")
+        setShopAddress(shopData.address ?? "")
       }
 
       // Unread bell badge: visits since last time user opened notifications
@@ -51,7 +44,7 @@ export function Header({
         const { count } = await supabase
           .from("visits")
           .select("id", { count: "exact", head: true })
-          .eq("shop_id", profile.shop_id)
+          .eq("shop_id", shop.shopId)
           .gt("visited_at", lastSeen)
         setBellCount(count ?? 0)
       } catch { /* ignore */ }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbVisit = {
   id: string
@@ -102,19 +103,10 @@ export function RecentVisits({
   // Initial load
   useEffect(() => {
     const init = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-      await loadVisits(profile.shop_id)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setShopId(shop.shopId)
+      await loadVisits(shop.shopId)
     }
     init()
   }, [])

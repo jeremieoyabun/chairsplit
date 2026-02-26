@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Search, ChevronRight, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbClient = {
   id: string
@@ -60,19 +61,10 @@ export function Clients({ onBack, onClientPress }: { onBack: () => void; onClien
 
   useEffect(() => {
     const init = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-      await loadClients(profile.shop_id)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setShopId(shop.shopId)
+      await loadClients(shop.shopId)
       setLoading(false)
     }
     init()
