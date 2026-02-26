@@ -61,6 +61,7 @@ export default function Page() {
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [pendingPlan, setPendingPlan] = useState<{ plan: string; billing: string } | null>(null)
+  const [subscriptionReturnTo, setSubscriptionReturnTo] = useState<Screen>("settings")
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -224,7 +225,9 @@ export default function Page() {
           else setScreen("setup-shop")
         }} />
       ) : screen === "setup-shop" ? (
-        <SetupShop onComplete={() => setScreen("home")} />
+        <SetupShop onComplete={() => {
+          if (pendingPlan) { setScreen("home") } else { setSubscriptionReturnTo("home"); setScreen("subscription") }
+        }} />
       ) : screen === "reset-password" ? (
         <ResetPassword onComplete={() => {
           setNotification({ type: "success", message: "Password updated successfully!" })
@@ -287,7 +290,7 @@ export default function Page() {
           onServiceCatalogPress={() => setScreen("service-catalog")}
           onCommissionsPress={() => setScreen("commissions")}
           onClientsPress={() => setScreen("clients")}
-          onSubscriptionPress={() => setScreen("subscription")}
+          onSubscriptionPress={() => { setSubscriptionReturnTo("settings"); setScreen("subscription") }}
           onShopProfilePress={() => setScreen("shop-profile")}
           onProfilePress={() => setScreen("profile")}
           onSignOut={handleSignOut}
@@ -304,7 +307,7 @@ export default function Page() {
       ) : screen === "client-detail" ? (
         <ClientDetail clientId={selectedClientId} onBack={() => setScreen("clients")} />
       ) : screen === "subscription" ? (
-        <Subscription onBack={() => setScreen("settings")} />
+        <Subscription onBack={() => setScreen(subscriptionReturnTo)} />
       ) : screen === "shop-profile" ? (
         <ShopProfile onBack={() => setScreen("settings")} />
       ) : screen === "statements" ? (
