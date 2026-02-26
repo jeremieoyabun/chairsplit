@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, ChevronRight } from "lucide-react"
+import { ArrowLeft, ChevronRight, Pencil, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 function getInitials(name: string) {
@@ -9,6 +9,10 @@ function getInitials(name: string) {
 }
 
 type CommissionRow = { label: string; value: string }
+type EditField = "name" | "phone" | null
+
+const inputClass =
+  "flex-1 bg-[#F4F4F6] rounded-[10px] px-3 py-2 text-[14px] text-[#111113] outline-none focus:ring-2 focus:ring-[#1A1A1A]/10"
 
 export function BarberSettings({
   onBack,
@@ -24,6 +28,9 @@ export function BarberSettings({
   const [commissionRows, setCommissionRows] = useState<CommissionRow[]>([])
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [editField, setEditField] = useState<EditField>(null)
+  const [editValue, setEditValue] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -44,7 +51,6 @@ export function BarberSettings({
       setPhone(profile.phone ?? "")
 
       if (profile.shop_id) {
-        // Load shop name
         const { data: shop } = await supabase
           .from("shops")
           .select("name, address")
@@ -53,7 +59,6 @@ export function BarberSettings({
 
         if (shop) setShopLabel(`${shop.name}${shop.address ? ` · ${shop.address.split(",")[0]}` : ""}`)
 
-        // Load commission rules for this barber (barber-specific or shop-wide defaults)
         const { data: rules } = await supabase
           .from("commission_rules")
           .select("rate, service_id, services(name)")
@@ -75,6 +80,37 @@ export function BarberSettings({
     load()
   }, [])
 
+  const startEdit = (field: EditField) => {
+    setEditField(field)
+    setEditValue(field === "name" ? fullName : phone)
+  }
+
+  const cancelEdit = () => {
+    setEditField(null)
+    setEditValue("")
+  }
+
+  const saveEdit = async () => {
+    if (!editField) return
+    setSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+
+    const update = editField === "name"
+      ? { full_name: editValue.trim() }
+      : { phone: editValue.trim() }
+
+    const { error } = await supabase.from("profiles").update(update).eq("id", user.id)
+    if (!error) {
+      if (editField === "name") setFullName(editValue.trim())
+      else setPhone(editValue.trim())
+    }
+    setSaving(false)
+    setEditField(null)
+    setEditValue("")
+  }
+
   const handleSignOut = async () => {
     await createClient().auth.signOut()
     onSignOut?.()
@@ -83,10 +119,10 @@ export function BarberSettings({
   const initials = fullName ? getInitials(fullName) : "—"
   const displayName = fullName || "—"
 
-  const infoRows = [
-    { label: "Name", value: loading ? "—" : displayName },
-    { label: "Email", value: loading ? "—" : email || "—" },
-    { label: "Phone", value: loading ? "—" : phone || "—" },
+  const infoRows: { label: string; value: string; field: EditField }[] = [
+    { label: "Name", value: loading ? "—" : displayName, field: "name" },
+    { label: "Email", value: loading ? "—" : email || "—", field: null },
+    { label: "Phone", value: loading ? "—" : phone || "—", field: "phone" },
   ]
 
   return (
@@ -132,15 +168,59 @@ export function BarberSettings({
             {infoRows.map((row, i) => (
               <div
                 key={row.label}
-                className={`flex items-center justify-between px-[18px] py-4 ${
-                  i < infoRows.length - 1 ? "border-b border-[#F8F8FA]" : ""
-                }`}
+                className={`px-[18px] py-4 ${i < infoRows.length - 1 ? "border-b border-[#F8F8FA]" : ""}`}
               >
-                <span className="text-[15px] text-[#111113]">{row.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[14px] text-[#9CA3AF]">{row.value}</span>
-                  <ChevronRight className="w-4 h-4 text-[#D1D5DB]" />
-                </div>
+                {editField === row.field && row.field !== null ? (
+                  /* Edit mode */
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[12px] font-semibold text-[#9CA3AF] uppercase tracking-wide">
+                      {row.label}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type={row.field === "phone" ? "tel" : "text"}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className={inputClass}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        disabled={saving}
+                        className="w-9 h-9 rounded-full bg-[#111113] flex items-center justify-center shrink-0 disabled:opacity-50"
+                      >
+                        <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="w-9 h-9 rounded-full bg-[#F4F4F6] flex items-center justify-center shrink-0"
+                      >
+                        <X className="w-4 h-4 text-[#6B7280]" strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* View mode */
+                  <div className="flex items-center justify-between">
+                    <span className="text-[15px] text-[#111113]">{row.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] text-[#9CA3AF]">{row.value}</span>
+                      {row.field ? (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(row.field)}
+                          className="w-7 h-7 rounded-full bg-[#F4F4F6] flex items-center justify-center active:scale-95 transition-transform"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
+                        </button>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-[#D1D5DB]" />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -177,13 +257,6 @@ export function BarberSettings({
             PREFERENCES
           </span>
           <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
-            <div className="flex items-center justify-between px-[18px] py-4 border-b border-[#F8F8FA]">
-              <span className="text-[15px] text-[#111113]">Language</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[14px] text-[#9CA3AF]">English</span>
-                <ChevronRight className="w-4 h-4 text-[#D1D5DB]" />
-              </div>
-            </div>
             <div className="flex items-center justify-between px-[18px] py-4">
               <span className="text-[15px] text-[#111113]">Notifications</span>
               <button

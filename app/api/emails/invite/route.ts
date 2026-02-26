@@ -18,7 +18,7 @@ function inviteHtml(name: string, shopName: string, role: string, email: string)
 
         <!-- Header -->
         <tr><td style="background:#1A1A1A;border-radius:20px 20px 0 0;padding:32px 40px;text-align:center;">
-          <img src="https://www.chairsplit.app/images/logo-chairsplit.png" alt="ChairSplit" height="32" style="display:inline-block;height:32px;width:auto;" />
+          <img src="https://www.chairsplit.app/images/Logo_chairsplit_white.png" alt="ChairSplit" height="32" style="display:inline-block;height:32px;width:auto;" />
           <p style="color:rgba(255,255,255,0.5);font-size:13px;margin:10px 0 0;">Barbershop management, simplified</p>
         </td></tr>
 
