@@ -37,6 +37,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
   const [barberName, setBarberName] = useState("")
   const [services, setServices] = useState<Service[]>([])
   const [paymentMethod, setPaymentMethod] = useState<"line" | "cash" | "card" | "promptpay">("line")
+  const [linePayQrUrl, setLinePayQrUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -67,16 +68,24 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
       setShopId(profile.shop_id)
       if (profile.full_name) setBarberName(profile.full_name)
 
-      const { data: raw, error } = await supabase
-        .from("services")
-        .select("id, name, price, icon, is_addon")
-        .eq("shop_id", profile.shop_id)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
+      const [svcResult, shopResult] = await Promise.all([
+        supabase
+          .from("services")
+          .select("id, name, price, icon, is_addon")
+          .eq("shop_id", profile.shop_id)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("shops")
+          .select("line_pay_qr_url")
+          .eq("id", profile.shop_id)
+          .single(),
+      ])
 
-      if (error) { console.error("[BarberNewVisit] services:", error.message); setLoading(false); return }
+      if (svcResult.error) { console.error("[BarberNewVisit] services:", svcResult.error.message); setLoading(false); return }
+      if (shopResult.data?.line_pay_qr_url) setLinePayQrUrl(shopResult.data.line_pay_qr_url)
 
-      setServices((raw ?? []).map((s: DbService) => ({ ...s, selected: false })))
+      setServices((svcResult.data ?? []).map((s: DbService) => ({ ...s, selected: false })))
       setLoading(false)
     }
     load()
@@ -411,6 +420,17 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
             </button>
           ))}
         </div>
+
+        {paymentMethod === "line" && linePayQrUrl && (
+          <div className="mt-3 flex flex-col items-center gap-1.5 rounded-[16px] bg-[#F0FFF4] border border-[#BBF7D0] p-4">
+            <img
+              src={linePayQrUrl}
+              alt="LINE Pay QR Code"
+              className="w-40 h-40 object-contain rounded-[10px]"
+            />
+            <span className="text-[11px] text-[#16A34A] font-medium">Scan with LINE to pay</span>
+          </div>
+        )}
       </div>
 
       {/* Total zone */}

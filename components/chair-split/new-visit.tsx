@@ -55,6 +55,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
   const [clientCreating, setClientCreating] = useState(false)
 
   const [paymentMethod, setPaymentMethod] = useState<"line" | "cash" | "card" | "promptpay">("line")
+  const [linePayQrUrl, setLinePayQrUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +75,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
       if (!profile?.shop_id) { setLoading(false); return }
       setShopId(profile.shop_id)
 
-      const [barberRes, svcRes] = await Promise.all([
+      const [barberRes, svcRes, shopRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, full_name")
@@ -87,7 +88,13 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
           .eq("shop_id", profile.shop_id)
           .eq("is_active", true)
           .order("sort_order", { ascending: true }),
+        supabase
+          .from("shops")
+          .select("line_pay_qr_url")
+          .eq("id", profile.shop_id)
+          .single(),
       ])
+      if (shopRes.data?.line_pay_qr_url) setLinePayQrUrl(shopRes.data.line_pay_qr_url)
 
       setBarbers(
         (barberRes.data ?? []).map((b) => ({
@@ -477,6 +484,17 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
             </button>
           ))}
         </div>
+
+        {paymentMethod === "line" && linePayQrUrl && (
+          <div className="mt-3 flex flex-col items-center gap-1.5 rounded-[16px] bg-[#F0FFF4] border border-[#BBF7D0] p-4">
+            <img
+              src={linePayQrUrl}
+              alt="LINE Pay QR Code"
+              className="w-40 h-40 object-contain rounded-[10px]"
+            />
+            <span className="text-[11px] text-[#16A34A] font-medium">Scan with LINE to pay</span>
+          </div>
+        )}
       </div>
 
       {/* Total zone */}
