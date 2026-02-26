@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
 
   const user = data?.user
 
-  const publicPaths = ["/"]
+  const publicPaths = ["/", "/privacy", "/terms"]
   const isPublicPath = publicPaths.includes(request.nextUrl.pathname)
   const isApiPath = request.nextUrl.pathname.startsWith("/api/")
 

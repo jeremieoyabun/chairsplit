@@ -192,6 +192,12 @@ export function Signup({
             Sign in
           </button>
         </div>
+        <p className="mt-4 text-center text-[11px] text-[#9CA3AF]">
+          By creating an account you agree to our{" "}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#6B7280]">Terms of Service</a>
+          {" and "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#6B7280]">Privacy Policy</a>
+        </p>
       </div>
     </div>
   )

@@ -249,6 +249,12 @@ export function Login({
             Create account
           </button>
         </div>
+        <p className="mt-4 text-center text-[11px] text-[#9CA3AF]">
+          By continuing you agree to our{" "}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#6B7280]">Terms</a>
+          {" & "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#6B7280]">Privacy Policy</a>
+        </p>
       </div>
     </div>
   )
