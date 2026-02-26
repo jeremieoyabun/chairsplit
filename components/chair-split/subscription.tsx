@@ -193,6 +193,16 @@ export function Subscription({ onBack }: { onBack: () => void }) {
           <p className="text-[12px] text-red-500 text-center mt-3 px-5">{error}</p>
         )}
 
+        {!loading && !sub && (
+          <div className="mx-5 mt-4 rounded-[16px] bg-[#FEF3C7] border border-[#FDE68A] px-4 py-4">
+            <p className="text-[13px] font-semibold text-[#92400E]">No shop configured</p>
+            <p className="text-[12px] text-[#92400E] mt-1 opacity-80">
+              Complete your shop setup before subscribing. Go back and create your shop first.
+            </p>
+          </div>
+        )}
+
+        {sub && <>
         {/* Monthly / Yearly toggle */}
         <div className="mx-5 mt-6">
           <div className="flex rounded-[12px] bg-[#F3F4F6] p-1">
@@ -313,6 +323,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
             Payments processed securely by Stripe. Prices in Thai Baht (THB).
           </p>
         </div>
+        </>}
       </div>
     </div>
   )
