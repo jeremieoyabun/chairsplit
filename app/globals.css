@@ -56,7 +56,10 @@
   * {
     @apply border-border;
   }
-  body {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
     @apply bg-background text-foreground;
   }
 }
