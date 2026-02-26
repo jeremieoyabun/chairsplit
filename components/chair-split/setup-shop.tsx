@@ -2,18 +2,6 @@
 
 import { useState } from "react"
 import { ArrowLeft } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-
-const DEFAULT_SERVICES = [
-  { name: "Haircut/Fade", price: 400, icon: "✂️", is_addon: false, sort_order: 1 },
-  { name: "Beard Trim", price: 300, icon: "🪒", is_addon: false, sort_order: 2 },
-  { name: "Hair Coloring", price: 1500, icon: "🎨", is_addon: false, sort_order: 3 },
-  { name: "Bald Head Shave", price: 350, icon: "💈", is_addon: false, sort_order: 4 },
-  { name: "Hot Towel", price: 200, icon: "♨️", is_addon: true, sort_order: 5 },
-  { name: "Shampoo", price: 300, icon: "🧴", is_addon: true, sort_order: 6 },
-  { name: "Facial Steamer", price: 200, icon: "💆", is_addon: true, sort_order: 7 },
-  { name: "Line Up", price: 100, icon: "🖌️", is_addon: true, sort_order: 8 },
-]
 
 const inputClass =
   "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
@@ -33,53 +21,23 @@ export function SetupShop({ onComplete, onBack }: { onComplete: () => void; onBa
     setError(null)
     setLoading(true)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError("Please confirm your email first — check your inbox and click the link.")
-      setLoading(false)
-      return
-    }
-
-    // 1. Create the shop
-    const { data: shop, error: shopErr } = await supabase
-      .from("shops")
-      .insert({
-        name: name.trim(),
-        address: address.trim() || null,
-        phone: phone.trim() || null,
+    try {
+      const res = await fetch("/api/shop/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), address: address.trim(), phone: phone.trim() }),
       })
-      .select("id")
-      .single()
-
-    if (shopErr || !shop) {
-      console.error("[SetupShop] create shop:", shopErr?.message)
-      setError(shopErr?.message ?? "Failed to create shop.")
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? "Failed to create shop.")
+        setLoading(false)
+        return
+      }
+    } catch {
+      setError("Network error. Please try again.")
       setLoading(false)
       return
     }
-
-    // 2. Link owner profile to shop
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .update({ shop_id: shop.id })
-      .eq("id", user.id)
-
-    if (profileErr) console.error("[SetupShop] link profile:", profileErr.message)
-
-    // 3. Insert default services
-    const { error: servicesErr } = await supabase
-      .from("services")
-      .insert(DEFAULT_SERVICES.map((s) => ({ ...s, shop_id: shop.id, is_active: true })))
-
-    if (servicesErr) console.error("[SetupShop] insert services:", servicesErr.message)
-
-    // 4. Insert default commission rule (30% shop-wide)
-    const { error: commErr } = await supabase
-      .from("commission_rules")
-      .insert({ shop_id: shop.id, rate: 30 })
-
-    if (commErr) console.error("[SetupShop] insert commission rule:", commErr.message)
 
     setLoading(false)
     onComplete()
