@@ -17,6 +17,7 @@ export function Header({
 }) {
   const [shopName, setShopName] = useState("")
   const [shopAddress, setShopAddress] = useState("")
+  const [bellCount, setBellCount] = useState(0)
 
   useEffect(() => {
     const load = async () => {
@@ -43,6 +44,17 @@ export function Header({
         setShopName(shop.name ?? "")
         setShopAddress(shop.address ?? "")
       }
+
+      // Unread bell badge: visits since last time user opened notifications
+      try {
+        const lastSeen = localStorage.getItem("cs_notifs_seen") ?? new Date(0).toISOString()
+        const { count } = await supabase
+          .from("visits")
+          .select("id", { count: "exact", head: true })
+          .eq("shop_id", profile.shop_id)
+          .gt("visited_at", lastSeen)
+        setBellCount(count ?? 0)
+      } catch { /* ignore */ }
     }
     load()
   }, [])
@@ -70,12 +82,12 @@ export function Header({
         </button>
         <div>
           <button type="button" className="flex items-center gap-1">
-            <span className="text-[20px] font-bold text-[#111113] leading-tight">
+            <span className="text-[20px] font-bold text-[#111113] leading-tight" translate="no">
               {shopName || "—"}
             </span>
             <ChevronDown className="w-3 h-3 text-[#111113] mt-0.5" />
           </button>
-          <span className="text-[13px] text-[#9CA3AF] leading-tight block">
+          <span className="text-[13px] text-[#9CA3AF] leading-tight block" translate="no">
             {shopAddress || "—"}
           </span>
         </div>
@@ -89,6 +101,13 @@ export function Header({
         aria-label="Notifications"
       >
         <Bell className="w-[22px] h-[22px] text-[#111113]" />
+        {bellCount > 0 && (
+          <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#EF4444] flex items-center justify-center px-1 shadow-sm">
+            <span className="text-[10px] font-bold text-white leading-none">
+              {bellCount > 9 ? "9+" : bellCount}
+            </span>
+          </div>
+        )}
       </button>
     </div>
   )

@@ -154,7 +154,7 @@ export function BarberSettings({
             <span className="text-[20px] font-bold text-[#111113] mt-3">{displayName}</span>
             <span className="text-[13px] text-[#9CA3AF] mt-1">{email || "—"}</span>
             {shopLabel ? (
-              <span className="text-[12px] text-[#D1D5DB] mt-1">{shopLabel}</span>
+              <span className="text-[12px] text-[#D1D5DB] mt-1" translate="no">{shopLabel}</span>
             ) : null}
           </div>
         </div>

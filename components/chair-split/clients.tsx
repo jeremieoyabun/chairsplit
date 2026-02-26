@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, Search, ChevronRight } from "lucide-react"
+import { ArrowLeft, Search, ChevronRight, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 type DbClient = {
@@ -113,9 +113,15 @@ export function Clients({ onBack, onClientPress }: { onBack: () => void; onClien
     setShowAddSheet(false)
   }
 
-  const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(query.toLowerCase())
-  )
+  const q = query.toLowerCase()
+  const filtered = q
+    ? clients.filter((c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone?.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.notes?.toLowerCase().includes(q)
+      )
+    : clients
 
   return (
     <div className="flex flex-col min-h-full relative">
@@ -149,16 +155,28 @@ export function Clients({ onBack, onClientPress }: { onBack: () => void; onClien
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search clients..."
+            placeholder="Name, phone, email…"
             className="flex-1 text-[14px] text-[#111113] placeholder:text-[#D1D5DB] bg-transparent outline-none"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="shrink-0 w-5 h-5 rounded-full bg-[#E5E7EB] flex items-center justify-center active:bg-[#D1D5DB] transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="w-3 h-3 text-[#6B7280]" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Stats */}
       <div className="px-5 mt-4">
         <span className="text-[13px] text-[#9CA3AF]">
-          {loading ? "Loading…" : `${filtered.length} client${filtered.length !== 1 ? "s" : ""}`}
+          {loading ? "Loading…" : query
+            ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""}`
+            : `${clients.length} client${clients.length !== 1 ? "s" : ""}`}
         </span>
       </div>
 

@@ -51,6 +51,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
   const [editAmount, setEditAmount] = useState("")
   const [editCategory, setEditCategory] = useState("Rent")
   const [editFreq, setEditFreq] = useState<"monthly" | "one-time">("monthly")
+  const [editDate, setEditDate] = useState(new Date().toISOString().split("T")[0])
   const [saving, setSaving] = useState(false)
 
   const loadExpenses = async (sid: string) => {
@@ -120,6 +121,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
     setEditAmount(String(item.amount))
     setEditCategory(item.category)
     setEditFreq(item.frequency)
+    setEditDate(item.date)
     setEditingExpense(item)
     setShowAddSheet(false)
   }
@@ -129,6 +131,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
     setEditAmount("")
     setEditCategory("Rent")
     setEditFreq("monthly")
+    setEditDate(new Date().toISOString().split("T")[0])
     setEditingExpense(null)
     setShowAddSheet(true)
   }
@@ -139,10 +142,11 @@ export function Expenses({ onBack }: { onBack: () => void }) {
     setSaving(true)
     const supabase = createClient()
 
+    const date = editFreq === "one-time" ? editDate : new Date().toISOString().split("T")[0]
     if (editingExpense) {
       await supabase
         .from("expenses")
-        .update({ name: editLabel.trim(), amount: amtNum, category: editCategory, frequency: editFreq })
+        .update({ name: editLabel.trim(), amount: amtNum, category: editCategory, frequency: editFreq, date })
         .eq("id", editingExpense.id)
     } else {
       await supabase.from("expenses").insert({
@@ -151,7 +155,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
         amount: amtNum,
         category: editCategory,
         frequency: editFreq,
-        date: new Date().toISOString().split("T")[0],
+        date,
       })
     }
 
@@ -295,7 +299,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">LABEL</label>
-                <input type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className={inputClass} placeholder="e.g. Monthly rent" />
+                <input autoFocus type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className={inputClass} placeholder="e.g. Monthly rent" />
               </div>
               <div>
                 <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">AMOUNT</label>
@@ -338,6 +342,18 @@ export function Expenses({ onBack }: { onBack: () => void }) {
                   ))}
                 </div>
               </div>
+              {editFreq === "one-time" && (
+                <div>
+                  <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">DATE</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className={inputClass}
+                  />
+                </div>
+              )}
             </div>
 
             <button
@@ -346,7 +362,7 @@ export function Expenses({ onBack }: { onBack: () => void }) {
               disabled={saving}
               className="w-full h-[52px] rounded-[16px] bg-[#1A1A1A] text-[15px] font-semibold text-[#FFFFFF] mt-5 active:scale-[0.98] transition-transform shadow-[0_4px_16px_rgba(0,0,0,0.12)] disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? "Saving…" : editingExpense ? "Save changes" : "Add expense"}
             </button>
             {editingExpense && (
               <button
