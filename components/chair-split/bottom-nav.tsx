@@ -62,14 +62,14 @@ export function BottomNav({
   return (
     <div className="absolute bottom-3 left-4 right-4 z-30">
       {/* Center "+" button */}
-      <div className="absolute left-1/2 -translate-x-1/2 -top-[26px] z-10">
+      <div className="absolute left-1/2 -translate-x-1/2 -top-[32px] z-10">
         <button
           type="button"
           onClick={onPlusPress}
-          className="w-[60px] h-[60px] rounded-full bg-[#1A1A1A] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.25)] ring-[4px] ring-[#F0F0F3] active:scale-95 transition-transform"
+          className="w-[72px] h-[72px] rounded-full bg-[#1A1A1A] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.25)] ring-[4px] ring-[#F0F0F3] active:scale-95 transition-transform"
           aria-label="New visit"
         >
-          <Plus className="w-[26px] h-[26px] text-[#FFFFFF]" strokeWidth={2.5} />
+          <Plus className="w-[32px] h-[32px] text-[#FFFFFF]" strokeWidth={2.5} />
         </button>
       </div>
 

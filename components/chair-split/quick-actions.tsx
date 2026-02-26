@@ -32,12 +32,12 @@ export function QuickActions({
           className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
         >
           <div
-            className="w-[56px] h-[56px] rounded-2xl flex items-center justify-center"
+            className="w-[68px] h-[68px] rounded-[20px] flex items-center justify-center"
             style={{ backgroundColor: action.bg }}
           >
-            <action.icon className="w-6 h-6 text-[#374151]" strokeWidth={1.8} />
+            <action.icon className="w-[28px] h-[28px] text-[#374151]" strokeWidth={1.7} />
           </div>
-          <span className="text-[11px] font-medium text-[#6B7280]">
+          <span className="text-[12px] font-medium text-[#6B7280]">
             {action.label}
           </span>
         </button>
