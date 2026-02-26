@@ -2,7 +2,7 @@ import webpush from "web-push"
 import { createClient } from "@supabase/supabase-js"
 
 webpush.setVapidDetails(
-  "mailto:hello@chairsplit.app",
+  "mailto:contact@chairsplit.com",
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 )

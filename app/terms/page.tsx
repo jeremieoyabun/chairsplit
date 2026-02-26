@@ -32,8 +32,8 @@ export default function TermsPage() {
             </p>
             <p className="mt-2">
               ChairSplit is operated by its publisher, reachable at{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>
               .
             </p>
@@ -60,7 +60,7 @@ export default function TermsPage() {
                 "You must provide accurate and complete information during registration.",
                 "You are responsible for maintaining the confidentiality of your login credentials.",
                 "You are responsible for all activity that occurs under your account.",
-                "You must notify us immediately at hello@chairsplit.app if you suspect unauthorized access.",
+                "You must notify us immediately at contact@chairsplit.com if you suspect unauthorized access.",
                 "One shop per owner account. Multiple barber accounts can be invited to one shop.",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
@@ -199,8 +199,8 @@ export default function TermsPage() {
             </p>
             <p className="mt-2">
               You may delete your account at any time by contacting us at{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>
               . Upon deletion, your data will be removed in accordance with our Privacy Policy.
             </p>
@@ -228,8 +228,8 @@ export default function TermsPage() {
             <h2 className="text-[18px] font-semibold text-[#111113] mb-3">13. Contact</h2>
             <p>
               For any questions about these Terms, contact us at:{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>
             </p>
           </section>

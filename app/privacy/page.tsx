@@ -32,8 +32,8 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-2">
               For any question regarding this policy, contact us at:{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>
             </p>
           </section>
@@ -139,8 +139,8 @@ export default function PrivacyPage() {
             </ul>
             <p className="mt-3">
               To exercise any of these rights, email us at{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>{" "}
               and we will respond within 30 days.
             </p>
@@ -178,8 +178,8 @@ export default function PrivacyPage() {
             <h2 className="text-[18px] font-semibold text-[#111113] mb-3">10. Contact</h2>
             <p>
               Questions about this Privacy Policy?{" "}
-              <a href="mailto:hello@chairsplit.app" className="text-[#111113] font-medium underline">
-                hello@chairsplit.app
+              <a href="mailto:contact@chairsplit.com" className="text-[#111113] font-medium underline">
+                contact@chairsplit.com
               </a>
             </p>
           </section>
