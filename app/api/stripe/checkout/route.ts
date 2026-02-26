@@ -21,8 +21,10 @@ export async function POST(req: NextRequest) {
       : process.env.STRIPE_PRO_PRICE_ID
   }
 
-  if (!priceId || priceId.startsWith("price_REPLACE")) {
-    return NextResponse.json({ error: "Stripe price IDs not configured yet" }, { status: 500 })
+  if (!priceId || priceId.startsWith("price_REPLACE") || priceId.startsWith("prod_")) {
+    return NextResponse.json({
+      error: `Invalid price ID for ${plan}/${billing}: "${priceId}". Must be a price_ ID from Stripe Dashboard.`
+    }, { status: 500 })
   }
 
   // Get the user's shop
@@ -44,33 +46,48 @@ export async function POST(req: NextRequest) {
 
   const origin = req.headers.get("origin") || "http://localhost:3000"
 
-  // Reuse or create a Stripe customer for this shop
-  let customerId: string = shop.stripe_customer_id ?? ""
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: shop.name,
+  try {
+    // Reuse or create a Stripe customer for this shop
+    let customerId: string = shop.stripe_customer_id ?? ""
+    if (customerId) {
+      // Verify the customer still exists in this Stripe account
+      try {
+        await stripe.customers.retrieve(customerId)
+      } catch {
+        // Customer doesn't exist (e.g. Stripe account changed) — create a fresh one
+        customerId = ""
+        await supabase.from("shops").update({ stripe_customer_id: null }).eq("id", shop.id)
+      }
+    }
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: shop.name,
+        metadata: { shop_id: shop.id },
+      })
+      customerId = customer.id
+      await supabase
+        .from("shops")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", shop.id)
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${origin}/?stripe=success`,
+      cancel_url: `${origin}/?stripe=canceled`,
       metadata: { shop_id: shop.id },
+      subscription_data: {
+        metadata: { shop_id: shop.id },
+      },
     })
-    customerId = customer.id
-    await supabase
-      .from("shops")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", shop.id)
+
+    return NextResponse.json({ url: session.url })
+  } catch (err: any) {
+    console.error("[checkout] Stripe error:", err?.message)
+    return NextResponse.json({ error: err?.message ?? "Stripe error" }, { status: 500 })
   }
-
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: "subscription",
-    payment_method_types: ["card"],
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/?stripe=success`,
-    cancel_url: `${origin}/?stripe=canceled`,
-    metadata: { shop_id: shop.id },
-    subscription_data: {
-      metadata: { shop_id: shop.id },
-    },
-  })
-
-  return NextResponse.json({ url: session.url })
 }

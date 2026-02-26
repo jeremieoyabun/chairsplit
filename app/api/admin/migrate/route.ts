@@ -10,12 +10,28 @@ function getProjectRef() {
 
 const MIGRATION_SQL = `
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id);
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS line_pay_qr_url TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive';
 ALTER TABLE visits ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'line';
+
+ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "shop_select_own" ON shops;
+CREATE POLICY "shop_select_own" ON shops
+  FOR SELECT USING (id IN (SELECT shop_id FROM profiles WHERE id = auth.uid()));
+
+DROP POLICY IF EXISTS "shop_update_own" ON shops;
+CREATE POLICY "shop_update_own" ON shops
+  FOR UPDATE USING (id IN (SELECT shop_id FROM profiles WHERE id = auth.uid()));
+
+DROP POLICY IF EXISTS "shop_insert_own" ON shops;
+CREATE POLICY "shop_insert_own" ON shops
+  FOR INSERT WITH CHECK (true);
 `
 
 export async function GET(req: NextRequest) {
@@ -50,35 +66,80 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Migration failed", details: err }, { status: 500 })
   }
 
-  // Now link the current user's profile to their shop
-  const supabase = await createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Use admin client (service role) for linking — bypasses RLS and session
+  const { createClient } = await import("@supabase/supabase-js")
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
 
-  if (!user) {
-    return NextResponse.json({ migration: "ok", link: "skipped - not logged in" })
+  // userId can be passed as query param, or we try to get from session
+  let userId = req.nextUrl.searchParams.get("userId")
+  if (!userId) {
+    const supabase = await createServerSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    userId = user?.id ?? null
   }
 
-  // Find the shop (if any)
-  const { data: shops } = await supabase.from("shops").select("id, name").limit(5)
-
-  if (!shops || shops.length === 0) {
+  if (!userId) {
     return NextResponse.json({
       migration: "ok",
-      link: "no shops found - create a shop first via the app",
-      userId: user.id,
+      link: "skipped",
+      hint: "Add &userId=YOUR_USER_ID to the URL",
     })
   }
 
-  // Link the first shop to the user's profile
+  // Diagnostic: show current state
+  const { data: shops } = await admin.from("shops").select("id, name").limit(10)
+  const { data: profile } = await admin.from("profiles").select("id, shop_id, full_name, role").eq("id", userId).single()
+
+  if (!shops || shops.length === 0) {
+    // No shop exists — create one automatically
+    const { data: newShop, error: createErr } = await admin
+      .from("shops")
+      .insert({ name: "Mon Salon", currency: "thb" })
+      .select("id, name")
+      .single()
+
+    if (createErr || !newShop) {
+      return NextResponse.json({ migration: "ok", link: "failed to create shop", error: createErr?.message, profile })
+    }
+
+    const { error: linkErr } = await admin
+      .from("profiles")
+      .update({ shop_id: newShop.id })
+      .eq("id", userId)
+
+    return NextResponse.json({
+      migration: "ok",
+      link: linkErr ? "link failed: " + linkErr.message : "ok",
+      shopCreated: true,
+      shopId: newShop.id,
+      shopName: newShop.name,
+      profile,
+      message: linkErr ? "Shop created but link failed" : "Done! Reload the app.",
+    })
+  }
+
+  // Shop(s) exist — link the first one
   const shopId = shops[0].id
-  await supabase.from("profiles").update({ shop_id: shopId }).eq("id", user.id)
+  const { error: linkErr } = await admin
+    .from("profiles")
+    .update({ shop_id: shopId })
+    .eq("id", userId)
+
+  // Verify the update worked
+  const { data: updatedProfile } = await admin.from("profiles").select("id, shop_id").eq("id", userId).single()
 
   return NextResponse.json({
     migration: "ok",
-    link: "ok",
-    userId: user.id,
+    link: linkErr ? "failed: " + linkErr.message : "ok",
     shopId,
     shopName: shops[0].name,
-    message: "Done! Reload the app.",
+    allShops: shops,
+    profileBefore: profile,
+    profileAfter: updatedProfile,
+    message: linkErr ? "Link failed" : "Done! Reload the app.",
   })
 }

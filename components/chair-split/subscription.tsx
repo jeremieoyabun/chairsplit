@@ -62,9 +62,36 @@ export function Subscription({ onBack }: { onBack: () => void }) {
         .eq("shop_id", profile.shop_id)
         .eq("role", "barber")
 
+      const planVal = shop.plan ?? "free"
+      const statusVal = shop.plan_status ?? "inactive"
+
+      // If plan is still free but customer exists, try to sync from Stripe (webhook may have missed)
+      if (planVal === "free" && shop.stripe_customer_id) {
+        try {
+          const syncRes = await fetch("/api/stripe/sync", { method: "POST" })
+          const syncJson = await syncRes.json()
+          if (syncJson.synced) {
+            // Reload shop after sync
+            const { data: updated } = await supabase
+              .from("shops")
+              .select("plan, plan_status, stripe_customer_id")
+              .eq("id", profile.shop_id)
+              .single()
+            setSub({
+              plan: updated?.plan ?? "free",
+              plan_status: updated?.plan_status ?? "inactive",
+              stripe_customer_id: updated?.stripe_customer_id ?? null,
+              barber_count: count ?? 0,
+            })
+            setLoading(false)
+            return
+          }
+        } catch { /* ignore */ }
+      }
+
       setSub({
-        plan: shop.plan ?? "free",
-        plan_status: shop.plan_status ?? "inactive",
+        plan: planVal,
+        plan_status: statusVal,
         stripe_customer_id: shop.stripe_customer_id ?? null,
         barber_count: count ?? 0,
       })

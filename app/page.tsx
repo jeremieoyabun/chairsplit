@@ -78,7 +78,10 @@ export default function Page() {
     const reset = params.get("reset")
     const plan = params.get("plan")
     const billing = params.get("billing") ?? "monthly"
-    if (stripe === "success") setNotification({ type: "success", message: "Subscription activated!" })
+    if (stripe === "success") {
+      fetch("/api/stripe/sync", { method: "POST" }).catch(() => {})
+      setNotification({ type: "success", message: "Subscription activated!" })
+    }
     else if (stripe === "canceled") setNotification({ type: "info", message: "Checkout canceled." })
     else if (google === "connected") setNotification({ type: "success", message: "Google Calendar connected!" })
     else if (google === "error") setNotification({ type: "error", message: "Could not connect Google Calendar." })

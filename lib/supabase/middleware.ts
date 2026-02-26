@@ -34,8 +34,9 @@ export async function updateSession(request: NextRequest) {
 
   const publicPaths = ["/"]
   const isPublicPath = publicPaths.includes(request.nextUrl.pathname)
+  const isApiPath = request.nextUrl.pathname.startsWith("/api/")
 
-  if (!user && !isPublicPath) {
+  if (!user && !isPublicPath && !isApiPath) {
     const url = request.nextUrl.clone()
     url.pathname = "/"
     return NextResponse.redirect(url)

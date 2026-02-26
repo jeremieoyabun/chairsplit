@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 function getInitials(name: string) {
@@ -17,10 +17,13 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
   const [currency, setCurrency] = useState("thb")
+  const [linePayQrUrl, setLinePayQrUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [qrUploading, setQrUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -39,7 +42,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
 
       const { data: shop, error: shopErr } = await supabase
         .from("shops")
-        .select("name, address, phone, currency")
+        .select("name, address, phone, currency, line_pay_qr_url")
         .eq("id", profile.shop_id)
         .single()
 
@@ -49,6 +52,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
         setAddress(shop.address ?? "")
         setPhone(shop.phone ?? "")
         setCurrency(shop.currency ?? "thb")
+        setLinePayQrUrl(shop.line_pay_qr_url ?? null)
       }
       setLoading(false)
     }
@@ -73,6 +77,51 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     }
+  }
+
+  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !shopId) return
+    setQrUploading(true)
+    setError(null)
+
+    const supabase = createClient()
+    const ext = file.name.split(".").pop() ?? "png"
+    const path = `${shopId}/line-pay-qr.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from("shop-qr")
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (uploadErr) {
+      console.error("[ShopProfile] QR upload:", uploadErr.message)
+      setError("Upload failed: " + uploadErr.message)
+      setQrUploading(false)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from("shop-qr").getPublicUrl(path)
+
+    const { error: updateErr } = await supabase
+      .from("shops")
+      .update({ line_pay_qr_url: publicUrl })
+      .eq("id", shopId)
+
+    if (updateErr) {
+      console.error("[ShopProfile] QR save:", updateErr.message)
+      setError(updateErr.message)
+    } else {
+      setLinePayQrUrl(publicUrl + "?t=" + Date.now())
+    }
+    setQrUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const handleQrRemove = async () => {
+    if (!shopId) return
+    const supabase = createClient()
+    await supabase.from("shops").update({ line_pay_qr_url: null }).eq("id", shopId)
+    setLinePayQrUrl(null)
   }
 
   const initials = name ? getInitials(name) : "—"
@@ -179,6 +228,65 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
                 </svg>
               </div>
             </div>
+          </div>
+
+          {/* LINE Pay QR Code */}
+          <div>
+            <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
+              QR Code LINE Pay
+            </label>
+            <div className="rounded-[16px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+              {linePayQrUrl ? (
+                <div className="flex flex-col items-center p-4 gap-3">
+                  <img
+                    src={linePayQrUrl}
+                    alt="LINE Pay QR Code"
+                    className="w-40 h-40 object-contain rounded-[12px] border border-[#F0F0F3]"
+                  />
+                  <div className="flex gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={qrUploading}
+                      className="flex-1 py-2.5 rounded-[10px] bg-[#F4F4F6] text-[13px] font-semibold text-[#374151] active:scale-[0.98] transition-transform disabled:opacity-50"
+                    >
+                      {qrUploading ? "Uploading…" : "Remplacer"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQrRemove}
+                      className="w-10 h-10 rounded-[10px] bg-[#FEF2F2] flex items-center justify-center active:scale-[0.98] transition-transform"
+                    >
+                      <X className="w-4 h-4 text-[#DC2626]" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={qrUploading}
+                  className="w-full flex flex-col items-center gap-2 py-8 active:bg-[#F9FAFB] transition-colors disabled:opacity-50"
+                >
+                  <div className="w-12 h-12 rounded-full bg-[#F0FFF4] flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-[#06C755]" />
+                  </div>
+                  <span className="text-[13px] font-semibold text-[#111113]">
+                    {qrUploading ? "Uploading…" : "Ajouter le QR Code"}
+                  </span>
+                  <span className="text-[11px] text-[#9CA3AF]">
+                    PNG ou JPG · Affiché à la caisse
+                  </span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQrUpload}
+            />
           </div>
         </div>
 
