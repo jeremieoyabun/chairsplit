@@ -99,6 +99,12 @@ export function VisitDetail({
       data: { visit_id: visit.id },
       is_read: false,
     })
+    // Push notification (fire and forget)
+    fetch("/api/push/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "visit_validated", visitId: visit.id }),
+    }).catch(() => {})
     setActionLoading(false)
   }
 

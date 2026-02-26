@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "mcp__claude_ai_Framer__getNodeXml",
+      "mcp__claude_ai_Framer__updateXmlForNode",
+      "mcp__claude_ai_Framer__createCodeFile",
+      "mcp__claude_ai_Framer__deleteNode",
+      "mcp__claude_ai_Framer__zoomIntoView",
+      "Bash(grep -r \"CREATE TABLE\\\\|type.*Db\\\\|interface.*Db\" \"c:\\\\Users\\\\conta\\\\Documents\\\\CHAIRSPLIT\\\\chairsplit\" --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\")"
     ]
   }
 }

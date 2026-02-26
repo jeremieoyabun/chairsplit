@@ -1,6 +1,7 @@
 "use client"
 
-import { ArrowLeft, ChevronRight, Scissors, Percent, Users, User, Star, Store, LogOut } from "lucide-react"
+import { ArrowLeft, Bell, BellOff, ChevronRight, Scissors, Percent, Users, User, Star, Store, LogOut } from "lucide-react"
+import { usePushNotifications } from "@/hooks/usePushNotifications"
 
 type SettingsRow = {
   icon: typeof Scissors
@@ -39,6 +40,8 @@ export function Services({
   onProfilePress?: () => void
   onSignOut?: () => void
 }) {
+  const { supported, subscribed, loading: pushLoading, register, unregister } = usePushNotifications()
+
   const handlers: Record<string, (() => void) | undefined> = {
     services: onServiceCatalogPress,
     commissions: onCommissionsPress,
@@ -99,6 +102,31 @@ export function Services({
         </span>
         <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           {accountSection.map((row, i) => renderRow(row, i === accountSection.length - 1))}
+          {supported && (
+            <button
+              type="button"
+              onClick={() => subscribed ? unregister() : register()}
+              disabled={pushLoading}
+              className="flex items-center gap-3.5 w-full py-[18px] px-[18px] text-left border-t border-[#F8F8FA] active:bg-[#F9FAFB] transition-colors disabled:opacity-50"
+            >
+              {subscribed
+                ? <BellOff className="w-5 h-5 text-[#6B7280] shrink-0" strokeWidth={1.8} />
+                : <Bell className="w-5 h-5 text-[#6B7280] shrink-0" strokeWidth={1.8} />
+              }
+              <span className="text-[15px] font-medium text-[#111113] flex-1">
+                {pushLoading ? "…" : subscribed ? "Disable notifications" : "Enable notifications"}
+              </span>
+              <div
+                className="w-10 h-6 rounded-full transition-colors flex items-center px-1 shrink-0"
+                style={{ backgroundColor: subscribed ? "#1A1A1A" : "#E5E7EB" }}
+              >
+                <div
+                  className="w-4 h-4 rounded-full bg-white shadow transition-transform"
+                  style={{ transform: subscribed ? "translateX(16px)" : "translateX(0)" }}
+                />
+              </div>
+            </button>
+          )}
           <button
             type="button"
             onClick={onSignOut}

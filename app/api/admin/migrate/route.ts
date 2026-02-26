@@ -19,6 +19,20 @@ ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive';
 ALTER TABLE visits ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'line';
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  shop_id UUID REFERENCES shops(id) ON DELETE SET NULL,
+  endpoint TEXT NOT NULL UNIQUE,
+  subscription TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "push_own" ON push_subscriptions;
+CREATE POLICY "push_own" ON push_subscriptions
+  FOR ALL USING (user_id = auth.uid());
+
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "shop_select_own" ON shops;

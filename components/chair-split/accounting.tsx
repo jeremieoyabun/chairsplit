@@ -19,6 +19,16 @@ function monthRange() {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+function getLast6Months(): { year: number; month: number; label: string }[] {
+  const now = new Date()
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)
+    return { year: d.getFullYear(), month: d.getMonth(), label: MONTH_LABELS[d.getMonth()] }
+  })
+}
+
 export function Accounting({
   onExpensesPress,
   onStatementsPress,
@@ -31,6 +41,7 @@ export function Accounting({
   const [revenue, setRevenue] = useState<number | null>(null)
   const [charges, setCharges] = useState<number | null>(null)
   const [expenseCount, setExpenseCount] = useState<number>(0)
+  const [monthlyRevenue, setMonthlyRevenue] = useState<number[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -71,6 +82,27 @@ export function Accounting({
       const totalCharges = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
       setCharges(totalCharges)
       setExpenseCount((expenses ?? []).length)
+
+      // Last 6 months revenue for chart
+      const months = getLast6Months()
+      const chartStart = new Date(months[0].year, months[0].month, 1).toISOString()
+      const { data: allVisits } = await supabase
+        .from("visits")
+        .select("total_amount, visited_at")
+        .eq("shop_id", profile.shop_id)
+        .eq("status", "validated")
+        .gte("visited_at", chartStart)
+
+      const buckets = months.map(({ year, month }) => {
+        const total = (allVisits ?? [])
+          .filter(v => {
+            const d = new Date(v.visited_at)
+            return d.getFullYear() === year && d.getMonth() === month
+          })
+          .reduce((s, v) => s + (v.total_amount ?? 0), 0)
+        return total
+      })
+      setMonthlyRevenue(buckets)
     }
     load()
   }, [])
@@ -172,6 +204,53 @@ export function Accounting({
           </div>
         </div>
       </div>
+
+      {/* Revenue Chart */}
+      {monthlyRevenue.length === 6 && (
+        <div className="mx-5 mt-4">
+          <div className="rounded-[20px] bg-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.05)] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[13px] font-semibold text-[#111113]">Revenue — last 6 months</span>
+              <span className="text-[11px] text-[#9CA3AF]">฿</span>
+            </div>
+            {(() => {
+              const maxVal = Math.max(...monthlyRevenue, 1)
+              const months = getLast6Months()
+              const currentIdx = 5
+              return (
+                <div className="flex items-end gap-1.5 h-[80px]">
+                  {monthlyRevenue.map((val, i) => {
+                    const pct = (val / maxVal) * 100
+                    const isCurrent = i === currentIdx
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                        <span className="text-[9px] text-[#9CA3AF] font-medium leading-none">
+                          {val > 0 ? fmtK(val) : ""}
+                        </span>
+                        <div className="w-full flex items-end" style={{ height: 52 }}>
+                          <div
+                            className="w-full rounded-t-[5px] transition-all"
+                            style={{
+                              height: `${Math.max(pct, val > 0 ? 6 : 2)}%`,
+                              backgroundColor: isCurrent ? "#1A1A1A" : val > 0 ? "#D1D5DB" : "#F3F4F6",
+                            }}
+                          />
+                        </div>
+                        <span
+                          className="text-[9px] font-semibold leading-none"
+                          style={{ color: isCurrent ? "#111113" : "#9CA3AF" }}
+                        >
+                          {months[i].label}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Nav Tiles */}
       <div className="px-5 mt-7 flex flex-col gap-3.5">

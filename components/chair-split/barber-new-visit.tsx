@@ -181,6 +181,13 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
 
     if (vsErr) console.error("[BarberNewVisit] visit_services:", vsErr.message)
 
+    // Notify shop owner via push (fire and forget)
+    fetch("/api/push/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "visit_created_draft", visitId: visit.id }),
+    }).catch(() => {})
+
     setSaving(false)
     setSavedOk(true)
     setTimeout(() => { setSavedOk(false); onBack() }, 1200)
