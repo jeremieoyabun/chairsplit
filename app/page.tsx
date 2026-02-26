@@ -117,13 +117,18 @@ export default function Page() {
         .select("role, shop_id")
         .eq("id", user.id)
         .single()
-      const role = (profile?.role as UserRole) ?? "barber"
+      const role = profile?.role as UserRole | null
+      const shopId = profile?.shop_id ?? null
+      // No role = new user who hasn't completed onboarding yet
+      // barber with no shop = was never properly invited, send to role-select
+      if (!role || (role === "barber" && !shopId)) { setScreen("role-select"); return }
       if (role === "barber") { setScreen("barber-home"); return }
-      setScreen(profile?.shop_id ? "home" : "setup-shop")
+      setScreen(shopId ? "home" : "setup-shop")
     })
   }, [])
 
-  const handleLogin = (role: UserRole, shopId: string | null) => {
+  const handleLogin = (role: UserRole | null, shopId: string | null) => {
+    if (!role || (role === "barber" && !shopId)) { setScreen("role-select"); return }
     if (role === "barber") { setScreen("barber-home"); return }
     setScreen(shopId ? "home" : "setup-shop")
   }
