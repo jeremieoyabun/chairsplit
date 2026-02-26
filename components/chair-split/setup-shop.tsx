@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 const DEFAULT_SERVICES = [
@@ -17,7 +18,7 @@ const DEFAULT_SERVICES = [
 const inputClass =
   "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
-export function SetupShop({ onComplete }: { onComplete: () => void }) {
+export function SetupShop({ onComplete, onBack }: { onComplete: () => void; onBack?: () => void }) {
   const [name, setName] = useState("")
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
@@ -86,9 +87,19 @@ export function SetupShop({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div
-      className="flex flex-col justify-center h-full px-9"
+      className="flex flex-col justify-center h-full px-9 relative"
       style={{ background: "linear-gradient(180deg, #FFFFFF 0%, #F4F4F6 100%)" }}
     >
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="absolute top-4 left-5 w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+        </button>
+      )}
       <div className="w-full">
         {/* Header */}
         <div className="mb-8">

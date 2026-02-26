@@ -225,14 +225,20 @@ export default function Page() {
           pendingPlan={pendingPlan?.plan}
         />
       ) : screen === "role-select" ? (
-        <RoleSelect onSelect={(role) => {
-          if (role === "barber") setScreen("barber-home")
-          else setScreen("setup-shop")
-        }} />
+        <RoleSelect
+          onSelect={(role) => {
+            if (role === "barber") setScreen("barber-home")
+            else setScreen("setup-shop")
+          }}
+          onBack={() => setScreen("signup")}
+        />
       ) : screen === "setup-shop" ? (
-        <SetupShop onComplete={() => {
-          if (pendingPlan) { setScreen("home") } else { setSubscriptionReturnTo("home"); setScreen("subscription") }
-        }} />
+        <SetupShop
+          onComplete={() => {
+            if (pendingPlan) { setScreen("home") } else { setSubscriptionReturnTo("home"); setScreen("subscription") }
+          }}
+          onBack={() => setScreen("role-select")}
+        />
       ) : screen === "reset-password" ? (
         <ResetPassword onComplete={() => {
           setNotification({ type: "success", message: "Password updated successfully!" })

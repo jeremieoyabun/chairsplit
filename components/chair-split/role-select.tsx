@@ -1,9 +1,9 @@
 "use client"
 
-import { Scissors, BarChart3 } from "lucide-react"
+import { Scissors, BarChart3, ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
-export function RoleSelect({ onSelect }: { onSelect: (role: "barber" | "owner") => void }) {
+export function RoleSelect({ onSelect, onBack }: { onSelect: (role: "barber" | "owner") => void; onBack?: () => void }) {
   const handleSelect = async (role: "barber" | "owner") => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -16,7 +16,17 @@ export function RoleSelect({ onSelect }: { onSelect: (role: "barber" | "owner") 
     onSelect(role)
   }
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-[#F0F0F3] px-6">
+    <div className="flex flex-col items-center justify-center h-full bg-[#F0F0F3] px-6 relative">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="absolute top-4 left-4 w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+        </button>
+      )}
       {/* Pill badge */}
       <div className="px-[18px] py-[6px] rounded-full bg-[#FFFFFF] shadow-[0_2px_10px_rgba(0,0,0,0.06)] mt-6">
         <span className="text-[11px] font-semibold text-[#111113] tracking-widest uppercase font-sans">
