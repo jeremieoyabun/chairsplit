@@ -4,11 +4,19 @@ import { useEffect, useState } from "react"
 import { ArrowLeft, User } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
+const PAYMENT_LABELS: Record<string, string> = {
+  line: "LINE Pay",
+  cash: "Cash",
+  card: "Card",
+  promptpay: "PromptPay",
+}
+
 type DbVisit = {
   id: string
   barber_id: string
   total_amount: number
   status: string
+  payment_method: string | null
   visited_at: string
   clients: { name: string } | null
   barber: { full_name: string } | null
@@ -50,7 +58,7 @@ export function VisitDetail({
 
       const { data: visitData, error } = await supabase
         .from("visits")
-        .select("id, barber_id, total_amount, status, visited_at, clients(name), barber:profiles!barber_id(full_name), visit_services(service_name, price, icon)")
+        .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), barber:profiles!barber_id(full_name), visit_services(service_name, price, icon)")
         .eq("id", visitId)
         .single()
 
@@ -181,6 +189,13 @@ export function VisitDetail({
           <span className="mt-3 text-[13px] text-[#6B7280]">
             {dateLabel} {"\u00B7"} {timeLabel}
           </span>
+          {visit?.payment_method && (
+            <div className={`mt-3 px-3 py-1 rounded-full ${visit.payment_method === "line" ? "bg-[rgba(6,199,85,0.15)]" : "bg-[rgba(255,255,255,0.08)]"}`}>
+              <span className={`text-[11px] font-semibold ${visit.payment_method === "line" ? "text-[#06C755]" : "text-[#9CA3AF]"}`}>
+                {PAYMENT_LABELS[visit.payment_method] ?? visit.payment_method}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 export type UserRole = 'owner' | 'manager' | 'barber'
 export type VisitStatus = 'draft' | 'validated' | 'cancelled'
+export type PaymentMethod = 'line' | 'cash' | 'card' | 'promptpay'
 export type ExpenseCategory = 'rent' | 'supplies' | 'utilities' | 'equipment' | 'taxes' | 'other'
 export type ExpenseFrequency = 'monthly' | 'one_time'
 export type PayslipStatus = 'pending' | 'approved' | 'paid'
@@ -52,6 +53,7 @@ export interface Visit {
   barber_id: string
   client_id: string | null
   status: VisitStatus
+  payment_method: PaymentMethod
   total_amount: number
   commission_amount: number
   commission_rate: number

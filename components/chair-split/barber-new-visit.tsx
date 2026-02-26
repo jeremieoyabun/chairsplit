@@ -36,6 +36,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
   const [barberId, setBarberId] = useState<string | null>(null)
   const [barberName, setBarberName] = useState("")
   const [services, setServices] = useState<Service[]>([])
+  const [paymentMethod, setPaymentMethod] = useState<"line" | "cash" | "card" | "promptpay">("line")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -146,6 +147,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
         barber_id: barberId,
         shop_id: shopId,
         status: "draft",
+        payment_method: paymentMethod,
         visited_at: new Date().toISOString(),
         ...(selectedClient ? { client_id: selectedClient.id } : {}),
       })
@@ -376,6 +378,39 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Payment method */}
+      <div className="px-5 mt-6">
+        <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
+          PAYMENT
+        </span>
+        <div className="flex gap-2">
+          {([
+            { key: "line", label: "LINE Pay", emoji: "💚" },
+            { key: "cash", label: "Cash", emoji: "💵" },
+            { key: "card", label: "Card", emoji: "💳" },
+            { key: "promptpay", label: "PromptPay", emoji: "📱" },
+          ] as const).map((pm) => (
+            <button
+              key={pm.key}
+              type="button"
+              onClick={() => setPaymentMethod(pm.key)}
+              className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-[14px] transition-all active:scale-[0.97] ${
+                paymentMethod === pm.key
+                  ? pm.key === "line"
+                    ? "bg-[#06C755] shadow-[0_2px_8px_rgba(6,199,85,0.3)]"
+                    : "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+                  : "bg-[#FFFFFF] shadow-[0_1px_6px_rgba(0,0,0,0.04)]"
+              }`}
+            >
+              <span className="text-[18px] leading-none">{pm.emoji}</span>
+              <span className={`text-[10px] font-semibold leading-none ${paymentMethod === pm.key ? "text-[#FFFFFF]" : "text-[#6B7280]"}`}>
+                {pm.label}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Total zone */}
