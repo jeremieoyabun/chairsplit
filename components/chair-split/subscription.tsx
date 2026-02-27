@@ -160,6 +160,18 @@ export function Subscription({ onBack }: { onBack: () => void }) {
 
       <div className="flex-1 overflow-y-auto scrollbar-hide pb-10">
 
+        {/* Skeleton */}
+        {loading && (
+          <div className="px-5 mt-4 animate-pulse">
+            <div className="rounded-[24px] bg-[#E5E7EB] h-[160px]" />
+            <div className="mt-6 rounded-[12px] bg-[#E5E7EB] h-[48px]" />
+            <div className="mt-4 flex gap-3">
+              <div className="flex-1 rounded-[20px] bg-[#E5E7EB] h-[320px]" />
+              <div className="flex-1 rounded-[20px] bg-[#E5E7EB] h-[320px]" />
+            </div>
+          </div>
+        )}
+
         {/* Current plan banner */}
         {!loading && (
           <div className="mx-5 mt-4">

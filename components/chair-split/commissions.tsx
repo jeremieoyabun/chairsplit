@@ -182,8 +182,17 @@ export function Commissions({ onBack }: { onBack: () => void }) {
         </div>
 
         {loading ? (
-          <div className="text-center py-6">
-            <span className="text-[13px] text-[#9CA3AF]">Loading…</span>
+          <div className="animate-pulse flex flex-col gap-2.5">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#E5E7EB] shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-[13px] bg-[#E5E7EB] rounded-full w-2/5" />
+                  <div className="h-[11px] bg-[#E5E7EB] rounded-full w-1/3" />
+                </div>
+                <div className="w-[48px] h-[28px] bg-[#E5E7EB] rounded-full" />
+              </div>
+            ))}
           </div>
         ) : specificRules.length === 0 ? (
           <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 text-center">

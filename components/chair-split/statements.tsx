@@ -21,7 +21,7 @@ function fmt(n: number) {
 }
 
 function monthLabel(year: number, month: number): string {
-  return new Date(year, month, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  return new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })
 }
 
 export function Statements({ onBack }: { onBack: () => void }) {
@@ -131,7 +131,7 @@ export function Statements({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" strokeWidth={2} />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-[#111113] mr-10">
-          Bilans mensuels
+          Monthly Statements
         </h1>
       </div>
 
@@ -159,13 +159,13 @@ export function Statements({ onBack }: { onBack: () => void }) {
                       : "bg-[#ECFDF5] text-[#16A34A]"
                   }`}
                 >
-                  {s.status === "en-cours" ? "En cours" : "Cl\u00F4tur\u00E9"}
+                  {s.status === "en-cours" ? "In progress" : "Closed"}
                 </span>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-2.5">
                 <div className="rounded-[14px] bg-[#F8F8FA] p-4">
-                  <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[#9CA3AF] block">CA</span>
+                  <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[#9CA3AF] block">Revenue</span>
                   <span className="text-[20px] font-bold text-[#111113] block mt-1.5">{s.ca} {"\u0E3F"}</span>
                 </div>
                 <div className="rounded-[14px] bg-[#F8F8FA] p-4">
@@ -173,12 +173,12 @@ export function Statements({ onBack }: { onBack: () => void }) {
                   <span className="text-[20px] font-bold text-[#111113] block mt-1.5">{s.commissions} {"\u0E3F"}</span>
                 </div>
                 <div className="rounded-[14px] bg-[#F8F8FA] p-4">
-                  <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[#9CA3AF] block">Charges</span>
+                  <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[#9CA3AF] block">Expenses</span>
                   <span className="text-[20px] font-bold text-[#111113] block mt-1.5">{s.charges} {"\u0E3F"}</span>
                 </div>
                 <div className={`rounded-[14px] p-4 ${s.isNegative ? "bg-[#FEF2F2]" : "bg-[#ECFDF5]"}`}>
                   <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[#9CA3AF] block">
-                    {"R\u00E9sultat net"}
+                    {"Net result"}
                   </span>
                   <span className={`text-[20px] font-bold block mt-1.5 ${s.isNegative ? "text-[#DC2626]" : "text-[#16A34A]"}`}>
                     {s.resultat} {"\u0E3F"}
@@ -191,7 +191,7 @@ export function Statements({ onBack }: { onBack: () => void }) {
       )}
 
       <p className="text-[12px] text-[#D1D5DB] px-5 mt-4 text-center leading-relaxed">
-        {"Ce relev\u00E9 est un outil de gestion. Il ne remplace pas un bilan certifi\u00E9."}
+        {"This statement is a management tool. It does not replace a certified audit."}
       </p>
     </div>
   )

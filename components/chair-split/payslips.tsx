@@ -155,7 +155,7 @@ export function Payslips({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" strokeWidth={2} />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-[#111113] mr-10">
-          Fiches de paie
+          Payslips
         </h1>
       </div>
 
@@ -182,8 +182,22 @@ export function Payslips({ onBack }: { onBack: () => void }) {
       {/* Payslip Cards */}
       <div className="px-5 mt-5 flex flex-col gap-3.5">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <span className="text-[14px] text-[#9CA3AF]">Loading…</span>
+          <div className="animate-pulse flex flex-col gap-3.5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-[20px] bg-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.05)] px-[22px] py-[22px]">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-full bg-[#E5E7EB] shrink-0" />
+                  <div className="h-[15px] bg-[#E5E7EB] rounded-full flex-1 max-w-[120px]" />
+                </div>
+                <div className="h-px bg-[#F5F5F7] my-4" />
+                <div className="flex gap-4">
+                  <div className="flex-1 h-[42px] bg-[#E5E7EB] rounded-[10px]" />
+                  <div className="flex-1 h-[42px] bg-[#E5E7EB] rounded-[10px]" />
+                  <div className="flex-1 h-[42px] bg-[#E5E7EB] rounded-[10px]" />
+                </div>
+                <div className="mt-4 rounded-[14px] bg-[#E5E7EB] h-[72px]" />
+              </div>
+            ))}
           </div>
         ) : payslips.length === 0 ? (
           <div className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-8 flex flex-col items-center gap-2">
@@ -259,7 +273,7 @@ export function Payslips({ onBack }: { onBack: () => void }) {
             className="w-full h-[52px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[15px] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.18)] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Download className="w-[18px] h-[18px]" strokeWidth={2} />
-            {exporting ? "Opening…" : "Exporter toutes les fiches (PDF)"}
+            {exporting ? "Opening…" : "Export all payslips (PDF)"}
           </button>
           <p className="text-[11px] text-[#9CA3AF] text-center mt-2">
             Opens a printable PDF in a new tab.

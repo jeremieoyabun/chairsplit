@@ -39,7 +39,7 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString("fr-FR")
 }
 
-const segments = ["Jour", "Semaine", "Mois"]
+const segments = ["Day", "Week", "Month"]
 
 function getRange(segment: number): { start: string; end: string } {
   const now = new Date()
@@ -98,7 +98,7 @@ export function BarberDetail({
       setBarberInitials(getInitials(name))
       if (profile?.created_at) {
         setMemberSince(
-          new Date(profile.created_at).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+          new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         )
       }
 
@@ -169,7 +169,7 @@ export function BarberDetail({
           id: v.id,
           services: (v.visit_services as { service_name: string }[]).map((s) => s.service_name).join(", ") || "—",
           amount: fmt(v.total_amount ?? 0),
-          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
         }))
       )
       setLoading(false)
