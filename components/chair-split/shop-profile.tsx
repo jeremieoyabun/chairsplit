@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
@@ -27,23 +28,15 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      const shopInfo = await getShop()
+      if (!shopInfo) { setLoading(false); return }
+      setShopId(shopInfo.shopId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-
       const { data: shop, error: shopErr } = await supabase
         .from("shops")
         .select("name, address, phone, currency, line_pay_qr_url")
-        .eq("id", profile.shop_id)
+        .eq("id", shopInfo.shopId)
         .single()
 
       if (shopErr) { console.error("[ShopProfile] load:", shopErr.message); setLoading(false); return }

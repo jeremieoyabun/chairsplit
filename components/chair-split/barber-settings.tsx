@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, ChevronRight, Pencil, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
@@ -34,36 +35,33 @@ export function BarberSettings({
 
   useEffect(() => {
     const load = async () => {
+      const shopInfo = await getShop()
+      if (!shopInfo) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      // Parallel: session (for email) + profile + shop
+      const [sessionRes, profileRes, shopRes] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("profiles").select("full_name, phone, shop_id").eq("id", shopInfo.userId).single(),
+        supabase.from("shops").select("name, address").eq("id", shopInfo.shopId).single(),
+      ])
 
-      setEmail(user.email ?? "")
+      setEmail(sessionRes.data.session?.user?.email ?? "")
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, phone, shop_id")
-        .eq("id", user.id)
-        .single()
-
+      const profile = profileRes.data
       if (!profile) { setLoading(false); return }
       setFullName(profile.full_name ?? "")
       setPhone(profile.phone ?? "")
 
-      if (profile.shop_id) {
-        const { data: shop } = await supabase
-          .from("shops")
-          .select("name, address")
-          .eq("id", profile.shop_id)
-          .single()
-
-        if (shop) setShopLabel(`${shop.name}${shop.address ? ` · ${shop.address.split(",")[0]}` : ""}`)
+      const shop = shopRes.data
+      if (shop) {
+        setShopLabel(`${shop.name}${shop.address ? ` · ${shop.address.split(",")[0]}` : ""}`)
 
         const { data: rules } = await supabase
           .from("commission_rules")
           .select("rate, service_id, services(name)")
-          .eq("shop_id", profile.shop_id)
-          .or(`barber_id.eq.${user.id},barber_id.is.null`)
+          .eq("shop_id", shopInfo.shopId)
+          .or(`barber_id.eq.${shopInfo.userId},barber_id.is.null`)
           .order("service_id", { ascending: true })
 
         if (rules && rules.length > 0) {
@@ -93,15 +91,15 @@ export function BarberSettings({
   const saveEdit = async () => {
     if (!editField) return
     setSaving(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
+    const shop = await getShop()
+    if (!shop) { setSaving(false); return }
 
+    const supabase = createClient()
     const update = editField === "name"
       ? { full_name: editValue.trim() }
       : { phone: editValue.trim() }
 
-    const { error } = await supabase.from("profiles").update(update).eq("id", user.id)
+    const { error } = await supabase.from("profiles").update(update).eq("id", shop.userId)
     if (!error) {
       if (editField === "name") setFullName(editValue.trim())
       else setPhone(editValue.trim())

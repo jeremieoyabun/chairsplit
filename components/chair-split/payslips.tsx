@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Download } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type PayslipData = {
   barberId: string
@@ -65,49 +66,44 @@ export function Payslips({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setShopId(shop.shopId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      const { start, end } = monthRange(months[activeMonth].value)
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
+      // Parallel: barbers + rules + visits
+      const [barbersRes, rulesRes, visitsRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("shop_id", shop.shopId)
+          .eq("role", "barber"),
+        supabase
+          .from("commission_rules")
+          .select("barber_id, rate")
+          .eq("shop_id", shop.shopId),
+        supabase
+          .from("visits")
+          .select("barber_id, total_amount")
+          .eq("shop_id", shop.shopId)
+          .eq("status", "validated")
+          .gte("visited_at", start)
+          .lt("visited_at", end),
+      ])
 
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-
-      // Barbers
-      const { data: barbers } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("shop_id", profile.shop_id)
-        .eq("role", "barber")
-
+      const barbers = barbersRes.data
       if (!barbers?.length) { setLoading(false); return }
 
-      // Commission rules
-      const { data: rules } = await supabase
-        .from("commission_rules")
-        .select("barber_id, rate")
-        .eq("shop_id", profile.shop_id)
-
+      const rules = rulesRes.data
       const ruleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
         if (r.barber_id) ruleMap[r.barber_id] = r.rate
       }
       const globalRate = rules?.find(r => !r.barber_id)?.rate ?? 30
 
-      // Visits for the selected month
-      const { start, end } = monthRange(months[activeMonth].value)
-      const { data: visits } = await supabase
-        .from("visits")
-        .select("barber_id, total_amount")
-        .eq("shop_id", profile.shop_id)
-        .eq("status", "validated")
-        .gte("visited_at", start)
-        .lt("visited_at", end)
+      const visits = visitsRes.data
 
       // Aggregate per barber
       const statsMap: Record<string, { revenue: number; visits: number }> = {}

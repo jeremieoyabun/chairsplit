@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type MonthStatement = {
   key: string
@@ -29,37 +30,32 @@ export function Statements({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-
-      // Load all validated visits (last 6 months)
       const sixMonthsAgo = new Date()
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
       sixMonthsAgo.setDate(1)
       sixMonthsAgo.setHours(0, 0, 0, 0)
 
-      const { data: visits } = await supabase
-        .from("visits")
-        .select("total_amount, barber_id, visited_at, status")
-        .eq("shop_id", profile.shop_id)
-        .eq("status", "validated")
-        .gte("visited_at", sixMonthsAgo.toISOString())
-        .order("visited_at", { ascending: false })
+      // Parallel: visits + rules + expenses
+      const [visitsRes, rulesRes] = await Promise.all([
+        supabase
+          .from("visits")
+          .select("total_amount, barber_id, visited_at, status")
+          .eq("shop_id", shop.shopId)
+          .eq("status", "validated")
+          .gte("visited_at", sixMonthsAgo.toISOString())
+          .order("visited_at", { ascending: false }),
+        supabase
+          .from("commission_rules")
+          .select("barber_id, rate")
+          .eq("shop_id", shop.shopId),
+      ])
 
-      // Load commission rules
-      const { data: rules } = await supabase
-        .from("commission_rules")
-        .select("barber_id, rate")
-        .eq("shop_id", profile.shop_id)
+      const visits = visitsRes.data
+      const rules = rulesRes.data
 
       const ruleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
@@ -73,7 +69,7 @@ export function Statements({ onBack }: { onBack: () => void }) {
         const { data: expenses } = await supabase
           .from("expenses")
           .select("amount, date")
-          .eq("shop_id", profile.shop_id)
+          .eq("shop_id", shop.shopId)
           .gte("date", sixMonthsAgo.toISOString().split("T")[0])
         for (const e of expenses ?? []) {
           const key = (e.date ?? "").slice(0, 7) // "YYYY-MM"

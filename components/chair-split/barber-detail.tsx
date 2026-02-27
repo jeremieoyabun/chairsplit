@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type RecentVisit = {
   id: string
@@ -80,10 +81,10 @@ export function BarberDetail({
     if (!barberId) { setLoading(false); return }
     const load = async () => {
       setLoading(true)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
 
+      const supabase = createClient()
       // Load barber profile
       const { data: profile } = await supabase
         .from("profiles")

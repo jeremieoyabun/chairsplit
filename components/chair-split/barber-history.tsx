@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbVisit = {
   id: string
@@ -77,18 +78,19 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
+      setBarberColor(colorFor(shop.userId))
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      // Parallel: profile + commission rules
+      const [profileRes, rulesRes] = await Promise.all([
+        supabase.from("profiles").select("full_name, shop_id").eq("id", shop.userId).single(),
+        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
+      ])
 
-      setBarberColor(colorFor(user.id))
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, shop_id")
-        .eq("id", user.id)
-        .single()
-
+      const profile = profileRes.data
       if (profile?.full_name) {
         const parts = profile.full_name.trim().split(/\s+/)
         const initials = parts.length >= 2
@@ -97,15 +99,10 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
         setBarberInitials(initials)
       }
 
-      // Get this barber's commission rate
       let rate = 30
-      if (profile?.shop_id) {
-        const { data: rules } = await supabase
-          .from("commission_rules")
-          .select("barber_id, rate")
-          .eq("shop_id", profile.shop_id)
-        const myRule = rules?.find((r) => r.barber_id === user.id)
-        const globalRule = rules?.find((r) => !r.barber_id)
+      if (rulesRes.data) {
+        const myRule = rulesRes.data.find((r) => r.barber_id === shop.userId)
+        const globalRule = rulesRes.data.find((r) => !r.barber_id)
         rate = myRule?.rate ?? globalRule?.rate ?? 30
       }
 
@@ -114,7 +111,7 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
       const { data: raw, error } = await supabase
         .from("visits")
         .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
-        .eq("barber_id", user.id)
+        .eq("barber_id", shop.userId)
         .gte("visited_at", start)
         .lt("visited_at", end)
         .order("visited_at", { ascending: false })

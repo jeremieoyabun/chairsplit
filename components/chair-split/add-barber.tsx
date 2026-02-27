@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Check } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 import { PLAN_LIMITS } from "@/lib/plans"
 
 export function AddBarber({
@@ -28,35 +29,28 @@ export function AddBarber({
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setShopId(shop.shopId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      // Parallel: shop data + barber count
+      const [shopRes, countRes] = await Promise.all([
+        supabase
+          .from("shops")
+          .select("name, plan, plan_status")
+          .eq("id", shop.shopId)
+          .single(),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("shop_id", shop.shopId)
+          .eq("role", "barber"),
+      ])
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-
-      const { data: shop } = await supabase
-        .from("shops")
-        .select("name, plan, plan_status")
-        .eq("id", profile.shop_id)
-        .single()
-
-      setPlan(shop?.plan ?? "free")
-      if (shop?.name) setShopName(shop.name)
-
-      const { count } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("shop_id", profile.shop_id)
-        .eq("role", "barber")
-
-      setBarberCount(count ?? 0)
+      setPlan(shopRes.data?.plan ?? "free")
+      if (shopRes.data?.name) setShopName(shopRes.data.name)
+      setBarberCount(countRes.count ?? 0)
       setLoading(false)
     }
     load()

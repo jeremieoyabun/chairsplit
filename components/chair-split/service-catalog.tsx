@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Search, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbService = {
   id: string
@@ -38,23 +39,15 @@ export function ServiceCatalog({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true)
+    const shop = await getShop()
+    if (!shop) { setLoading(false); return }
+    setShopId(shop.shopId)
+
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("shop_id")
-      .eq("id", user.id)
-      .single()
-
-    if (!profile?.shop_id) { setLoading(false); return }
-    setShopId(profile.shop_id)
-
     const { data, error } = await supabase
       .from("services")
       .select("id, name, price, icon, is_addon, is_active, sort_order")
-      .eq("shop_id", profile.shop_id)
+      .eq("shop_id", shop.shopId)
       .order("sort_order", { ascending: true })
 
     if (error) { console.error("[ServiceCatalog] services:", error.message) }

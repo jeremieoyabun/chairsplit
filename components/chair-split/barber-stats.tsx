@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbVisit = {
   total_amount: number
@@ -56,43 +57,37 @@ export function BarberStats() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      const { start, end } = getRange(activeSegment)
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
+      // Parallel: commission rules + visits
+      let visitsQuery = supabase
+        .from("visits")
+        .select("total_amount, visited_at, visit_services(service_name, price)")
+        .eq("barber_id", shop.userId)
+        .eq("status", "validated")
+        .lt("visited_at", end)
+      if (start) visitsQuery = visitsQuery.gte("visited_at", start)
 
-      // Get commission rate
+      const [rulesRes, visitsRes] = await Promise.all([
+        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
+        visitsQuery,
+      ])
+
       let rate = 30
-      if (profile?.shop_id) {
-        const { data: rules } = await supabase
-          .from("commission_rules")
-          .select("barber_id, rate")
-          .eq("shop_id", profile.shop_id)
-        const myRule = rules?.find((r) => r.barber_id === user.id)
-        const globalRule = rules?.find((r) => !r.barber_id)
+      if (rulesRes.data) {
+        const myRule = rulesRes.data.find((r) => r.barber_id === shop.userId)
+        const globalRule = rulesRes.data.find((r) => !r.barber_id)
         rate = myRule?.rate ?? globalRule?.rate ?? 30
       }
 
-      // Fetch validated visits for the selected period
-      const { start, end } = getRange(activeSegment)
-      let query = supabase
-        .from("visits")
-        .select("total_amount, visited_at, visit_services(service_name, price)")
-        .eq("barber_id", user.id)
-        .eq("status", "validated")
-        .lt("visited_at", end)
+      const raw = visitsRes.data
+      if (visitsRes.error) { console.error("[BarberStats] visits:", visitsRes.error.message); setLoading(false); return }
 
-      if (start) query = query.gte("visited_at", start)
-
-      const { data: raw, error } = await query
-      if (error) { console.error("[BarberStats] visits:", error.message); setLoading(false); return }
-
-      const rows = (raw ?? []) as unknown as DbVisit[]
+      const rows = (visitsRes.data ?? []) as unknown as DbVisit[]
 
       const totalRevenue = rows.reduce((s, v) => s + (v.total_amount ?? 0), 0)
       const totalCommission = Math.round(totalRevenue * rate / 100)
@@ -134,7 +129,7 @@ export function BarberStats() {
       const { data: weekRaw } = await supabase
         .from("visits")
         .select("visited_at")
-        .eq("barber_id", user.id)
+        .eq("barber_id", shop.userId)
         .gte("visited_at", weekStart)
         .lt("visited_at", weekEnd.toISOString())
 

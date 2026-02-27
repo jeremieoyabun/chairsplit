@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Check } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 import { PLANS, PLAN_LIMITS } from "@/lib/plans"
 
 type ShopSub = {
@@ -36,52 +37,47 @@ export function Subscription({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
+      // Parallel: shop data + barber count
+      const [shopRes, countRes] = await Promise.all([
+        supabase
+          .from("shops")
+          .select("plan, plan_status, stripe_customer_id")
+          .eq("id", shop.shopId)
+          .single(),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("shop_id", shop.shopId)
+          .eq("role", "barber"),
+      ])
 
-      if (!profile?.shop_id) { setLoading(false); return }
+      if (shopRes.error) { console.error("[Subscription] shop:", shopRes.error.message); setLoading(false); return }
 
-      const { data: shop, error: shopErr } = await supabase
-        .from("shops")
-        .select("plan, plan_status, stripe_customer_id")
-        .eq("id", profile.shop_id)
-        .single()
-
-      if (shopErr) { console.error("[Subscription] shop:", shopErr.message); setLoading(false); return }
-
-      const { count } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("shop_id", profile.shop_id)
-        .eq("role", "barber")
-
-      const planVal = shop.plan ?? "free"
-      const statusVal = shop.plan_status ?? "inactive"
+      const planVal = shopRes.data.plan ?? "free"
+      const statusVal = shopRes.data.plan_status ?? "inactive"
+      const barberCount = countRes.count ?? 0
 
       // If plan is still free but customer exists, try to sync from Stripe (webhook may have missed)
-      if (planVal === "free" && shop.stripe_customer_id) {
+      if (planVal === "free" && shopRes.data.stripe_customer_id) {
         try {
           const syncRes = await fetch("/api/stripe/sync", { method: "POST" })
           const syncJson = await syncRes.json()
           if (syncJson.synced) {
-            // Reload shop after sync
             const { data: updated } = await supabase
               .from("shops")
               .select("plan, plan_status, stripe_customer_id")
-              .eq("id", profile.shop_id)
+              .eq("id", shop.shopId)
               .single()
             setSub({
               plan: updated?.plan ?? "free",
               plan_status: updated?.plan_status ?? "inactive",
               stripe_customer_id: updated?.stripe_customer_id ?? null,
-              barber_count: count ?? 0,
+              barber_count: barberCount,
             })
             setLoading(false)
             return
@@ -92,8 +88,8 @@ export function Subscription({ onBack }: { onBack: () => void }) {
       setSub({
         plan: planVal,
         plan_status: statusVal,
-        stripe_customer_id: shop.stripe_customer_id ?? null,
-        barber_count: count ?? 0,
+        stripe_customer_id: shopRes.data.stripe_customer_id ?? null,
+        barber_count: barberCount,
       })
       setLoading(false)
     }

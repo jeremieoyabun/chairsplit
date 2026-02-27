@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type Rule = {
   id: string
@@ -54,23 +55,15 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true)
+    const shop = await getShop()
+    if (!shop) { setLoading(false); return }
+    setShopId(shop.shopId)
+
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("shop_id")
-      .eq("id", user.id)
-      .single()
-
-    if (!profile?.shop_id) { setLoading(false); return }
-    setShopId(profile.shop_id)
-
     const [rulesRes, barbersRes, servicesRes] = await Promise.all([
-      supabase.from("commission_rules").select("id, barber_id, service_id, rate").eq("shop_id", profile.shop_id),
-      supabase.from("profiles").select("id, full_name").eq("shop_id", profile.shop_id).eq("role", "barber"),
-      supabase.from("services").select("id, name").eq("shop_id", profile.shop_id),
+      supabase.from("commission_rules").select("id, barber_id, service_id, rate").eq("shop_id", shop.shopId),
+      supabase.from("profiles").select("id, full_name").eq("shop_id", shop.shopId).eq("role", "barber"),
+      supabase.from("services").select("id, name").eq("shop_id", shop.shopId),
     ])
 
     const rules = rulesRes.data ?? []

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Bell, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 import { AgendaView } from "./agenda-view"
 
 type DbVisit = {
@@ -115,29 +116,21 @@ export function BarberHome({
   // Initial load
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setUserId(shop.userId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      // Parallel: profile name + unread count
+      const [profileRes, countRes] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
+        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", shop.userId).eq("is_read", false),
+      ])
 
-      setUserId(user.id)
+      if (profileRes.data?.full_name) setFullName(profileRes.data.full_name)
+      setUnreadCount(countRes.count ?? 0)
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single()
-
-      if (profile?.full_name) setFullName(profile.full_name)
-
-      // Unread notifications count
-      const { count } = await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false)
-      setUnreadCount(count ?? 0)
-
-      await loadVisits(user.id)
+      await loadVisits(shop.userId)
     }
     load()
   }, [])

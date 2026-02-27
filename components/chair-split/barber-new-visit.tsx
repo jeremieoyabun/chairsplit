@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Search, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type DbService = {
   id: string
@@ -52,35 +53,28 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setBarberId(shop.userId)
+      setShopId(shop.shopId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      setBarberId(user.id)
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setNoShop(true); setLoading(false); return }
-      setShopId(profile.shop_id)
-      if (profile.full_name) setBarberName(profile.full_name)
-
-      const [svcResult, shopResult] = await Promise.all([
+      // Parallel: profile name + services + shop QR
+      const [profileRes, svcResult, shopResult] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
         supabase
           .from("services")
           .select("id, name, price, icon, is_addon")
-          .eq("shop_id", profile.shop_id)
+          .eq("shop_id", shop.shopId)
           .eq("is_active", true)
           .order("sort_order", { ascending: true }),
         supabase
           .from("shops")
           .select("line_pay_qr_url")
-          .eq("id", profile.shop_id)
+          .eq("id", shop.shopId)
           .single(),
       ])
+      if (profileRes.data?.full_name) setBarberName(profileRes.data.full_name)
 
       if (svcResult.error) { console.error("[BarberNewVisit] services:", svcResult.error.message); setLoading(false); return }
       if (shopResult.data?.line_pay_qr_url) setLinePayQrUrl(shopResult.data.line_pay_qr_url)

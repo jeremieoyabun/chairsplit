@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, User } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 const PAYMENT_LABELS: Record<string, string> = {
   line: "LINE Pay",
@@ -52,31 +53,30 @@ export function VisitDetail({
     if (!visitId) return
     const load = async () => {
       setLoading(true)
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: visitData, error } = await supabase
-        .from("visits")
-        .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), barber:profiles!barber_id(full_name), visit_services(service_name, price, icon)")
-        .eq("id", visitId)
-        .single()
-
-      if (error || !visitData) { setLoading(false); return }
-      setVisit(visitData as unknown as DbVisit)
-
-      // Commission rate lookup
-      const { data: profile } = await supabase.from("profiles").select("shop_id").eq("id", user.id).single()
-      if (profile?.shop_id) {
-        const { data: rules } = await supabase
+      // Parallel: visit data + commission rules
+      const [visitRes, rulesRes] = await Promise.all([
+        supabase
+          .from("visits")
+          .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), barber:profiles!barber_id(full_name), visit_services(service_name, price, icon)")
+          .eq("id", visitId)
+          .single(),
+        supabase
           .from("commission_rules")
           .select("barber_id, rate")
-          .eq("shop_id", profile.shop_id)
-        const vd = visitData as unknown as DbVisit
-        const barberRule = rules?.find((r) => r.barber_id === vd.barber_id)
-        const globalRule = rules?.find((r) => !r.barber_id)
-        setCommissionRate(barberRule?.rate ?? globalRule?.rate ?? 30)
-      }
+          .eq("shop_id", shop.shopId),
+      ])
+
+      if (visitRes.error || !visitRes.data) { setLoading(false); return }
+      const vd = visitRes.data as unknown as DbVisit
+      setVisit(vd)
+
+      const barberRule = rulesRes.data?.find((r) => r.barber_id === vd.barber_id)
+      const globalRule = rulesRes.data?.find((r) => !r.barber_id)
+      setCommissionRate(barberRule?.rate ?? globalRule?.rate ?? 30)
       setLoading(false)
     }
     load()

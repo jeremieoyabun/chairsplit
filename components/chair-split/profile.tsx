@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 const inputClass =
   "w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-4 text-[15px] text-[#111113] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
@@ -24,19 +25,17 @@ export function Profile({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setUserId(shop.userId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-      setUserId(user.id)
-      setEmail(user.email ?? "")
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single()
-
-      if (profile) setFullName(profile.full_name ?? "")
+      const [sessionRes, profileRes] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
+      ])
+      setEmail(sessionRes.data.session?.user?.email ?? "")
+      if (profileRes.data) setFullName(profileRes.data.full_name ?? "")
       setLoading(false)
     }
     load()

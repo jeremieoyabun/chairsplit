@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, ChevronDown, Search, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { getShop } from "@/lib/get-shop"
 
 type Barber = {
   id: string
@@ -62,36 +63,28 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
 
   useEffect(() => {
     const load = async () => {
+      const shop = await getShop()
+      if (!shop) { setLoading(false); return }
+      setShopId(shop.shopId)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.shop_id) { setLoading(false); return }
-      setShopId(profile.shop_id)
-
       const [barberRes, svcRes, shopRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, full_name")
-          .eq("shop_id", profile.shop_id)
+          .eq("shop_id", shop.shopId)
           .eq("role", "barber")
           .order("full_name", { ascending: true }),
         supabase
           .from("services")
           .select("id, name, price, icon, is_addon")
-          .eq("shop_id", profile.shop_id)
+          .eq("shop_id", shop.shopId)
           .eq("is_active", true)
           .order("sort_order", { ascending: true }),
         supabase
           .from("shops")
           .select("line_pay_qr_url")
-          .eq("id", profile.shop_id)
+          .eq("id", shop.shopId)
           .single(),
       ])
       if (shopRes.data?.line_pay_qr_url) setLinePayQrUrl(shopRes.data.line_pay_qr_url)
