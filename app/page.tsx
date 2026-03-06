@@ -41,9 +41,10 @@ import { BarberBottomNav } from "@/components/chair-split/barber-bottom-nav"
 import { SetupShop } from "@/components/chair-split/setup-shop"
 import { Agenda } from "@/components/chair-split/agenda"
 import { ResetPassword } from "@/components/chair-split/reset-password"
+import { Onboarding } from "@/components/chair-split/onboarding"
 
 type Screen =
-  | "login" | "signup" | "role-select" | "setup-shop" | "reset-password"
+  | "login" | "signup" | "role-select" | "setup-shop" | "reset-password" | "onboarding"
   | "home" | "notifications" | "profile"
   | "new-visit" | "visit-detail" | "visit-draft"
   | "history"
@@ -63,6 +64,7 @@ export default function Page() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [pendingPlan, setPendingPlan] = useState<{ plan: string; billing: string } | null>(null)
   const [subscriptionReturnTo, setSubscriptionReturnTo] = useState<Screen>("settings")
+  const [fromOnboarding, setFromOnboarding] = useState(false)
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -127,6 +129,8 @@ export default function Page() {
       // barber with no shop = was never properly invited, send to role-select
       if (!role || (role === "barber" && !shopId)) { setScreen("role-select"); return }
       if (role === "barber") { setScreen("barber-home"); return }
+      // Check trial expiry for owners (fire-and-forget)
+      if (shopId) fetch("/api/shop/expire-trial", { method: "POST" }).catch(() => {})
       setScreen(shopId ? "home" : "setup-shop")
     })
   }, [])
@@ -240,7 +244,7 @@ export default function Page() {
       ) : screen === "setup-shop" ? (
         <SetupShop
           onComplete={() => {
-            if (pendingPlan) { setScreen("home") } else { setSubscriptionReturnTo("home"); setScreen("subscription") }
+            if (pendingPlan) { setScreen("home") } else { setScreen("onboarding") }
           }}
           onBack={() => setScreen("role-select")}
         />
@@ -249,11 +253,19 @@ export default function Page() {
           setNotification({ type: "success", message: "Password updated successfully!" })
           setScreen("login")
         }} />
+      ) : screen === "onboarding" ? (
+        <Onboarding
+          onComplete={() => { setFromOnboarding(false); setScreen("home") }}
+          onAddBarber={() => { setFromOnboarding(true); setScreen("add-barber") }}
+          onCustomizeServices={() => { setFromOnboarding(true); setScreen("service-catalog") }}
+          onLogVisit={() => { setFromOnboarding(true); setScreen("new-visit") }}
+        />
       ) : screen === "home" ? (
         <>
           <Header
             onSettingsPress={() => setScreen("settings")}
             onNotificationsPress={() => setScreen("notifications")}
+            onSubscriptionPress={() => { setSubscriptionReturnTo("home"); setScreen("subscription") }}
           />
           <RevenueCard />
           <QuickActions
@@ -297,7 +309,7 @@ export default function Page() {
         </>
       ) : screen === "add-barber" ? (
         <AddBarber
-          onBack={() => setScreen("team")}
+          onBack={() => { const ret = fromOnboarding; setFromOnboarding(false); setScreen(ret ? "onboarding" : "team") }}
           onUpgradePress={() => setScreen("subscription")}
         />
       ) : screen === "settings" ? (
@@ -312,7 +324,7 @@ export default function Page() {
           onSignOut={handleSignOut}
         />
       ) : screen === "service-catalog" ? (
-        <ServiceCatalog onBack={() => setScreen("settings")} />
+        <ServiceCatalog onBack={() => { const ret = fromOnboarding; setFromOnboarding(false); setScreen(ret ? "onboarding" : "settings") }} />
       ) : screen === "commissions" ? (
         <Commissions onBack={() => setScreen("settings")} />
       ) : screen === "clients" ? (
@@ -336,8 +348,8 @@ export default function Page() {
         <BarberDetail onBack={() => setScreen("team")} barberId={selectedBarberId} />
       ) : screen === "new-visit" ? (
         <NewVisit
-          onBack={() => setScreen("home")}
-          onConfirm={() => { setNotification({ type: "success", message: "Visit confirmed!" }); setScreen("home") }}
+          onBack={() => { const ret = fromOnboarding; setFromOnboarding(false); setScreen(ret ? "onboarding" : "home") }}
+          onConfirm={() => { const ret = fromOnboarding; setFromOnboarding(false); setNotification({ type: "success", message: "Visit confirmed!" }); setScreen(ret ? "onboarding" : "home") }}
         />
       ) : screen === "visit-detail" ? (
         <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="validated" />

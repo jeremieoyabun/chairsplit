@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.emails.send({
-    from: "ChairSplit <onboarding@resend.dev>",
+    from: "ChairSplit <noreply@chairsplit.app>",
     to: email,
     subject: `You've been invited to join ${shopName} on ChairSplit`,
     html: inviteHtml(name ?? email, shopName, role ?? "barber", email),

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Bell, ChevronDown, Settings } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
+import { trialStatus } from "@/lib/trial"
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0] ?? "").join("").toUpperCase().slice(0, 2)
@@ -12,13 +13,16 @@ function getInitials(name: string) {
 export function Header({
   onSettingsPress,
   onNotificationsPress,
+  onSubscriptionPress,
 }: {
   onSettingsPress?: () => void
   onNotificationsPress?: () => void
+  onSubscriptionPress?: () => void
 }) {
   const [shopName, setShopName] = useState("")
   const [shopAddress, setShopAddress] = useState("")
   const [bellCount, setBellCount] = useState(0)
+  const [trialDays, setTrialDays] = useState<number | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -28,7 +32,7 @@ export function Header({
       const supabase = createClient()
       const { data: shopData, error } = await supabase
         .from("shops")
-        .select("name, address")
+        .select("name, address, plan_status, trial_ends_at")
         .eq("id", shop.shopId)
         .single()
 
@@ -36,6 +40,8 @@ export function Header({
       if (shopData) {
         setShopName(shopData.name ?? "")
         setShopAddress(shopData.address ?? "")
+        const trial = trialStatus(shopData.trial_ends_at, shopData.plan_status)
+        if (trial && !trial.expired) setTrialDays(trial.daysLeft)
       }
 
       // Unread bell badge: visits since last time user opened notifications
@@ -83,6 +89,15 @@ export function Header({
           <span className="text-[13px] text-[#9CA3AF] leading-tight block" translate="no">
             {shopAddress || "—"}
           </span>
+          {trialDays !== null && (
+            <button
+              type="button"
+              onClick={onSubscriptionPress}
+              className="mt-1 text-[10px] font-semibold text-[#2563EB] bg-[#EFF6FF] px-2.5 py-1 rounded-full leading-none"
+            >
+              Trial: {trialDays} day{trialDays !== 1 ? "s" : ""} left
+            </button>
+          )}
         </div>
       </div>
 

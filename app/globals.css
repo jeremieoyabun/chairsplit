@@ -60,6 +60,8 @@
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     @apply bg-background text-foreground;
   }
 }

@@ -25,14 +25,20 @@ export function Profile({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
-      const shop = await getShop()
-      if (!shop) { setLoading(false); return }
-      setUserId(shop.userId)
-
       const supabase = createClient()
+      // Use getShop first, fallback to auth.getUser for barbers without shop
+      const shop = await getShop()
+      let uid = shop?.userId
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser()
+        uid = user?.id ?? undefined
+      }
+      if (!uid) { setLoading(false); return }
+      setUserId(uid)
+
       const [sessionRes, profileRes] = await Promise.all([
         supabase.auth.getSession(),
-        supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
+        supabase.from("profiles").select("full_name").eq("id", uid).single(),
       ])
       setEmail(sessionRes.data.session?.user?.email ?? "")
       if (profileRes.data) setFullName(profileRes.data.full_name ?? "")

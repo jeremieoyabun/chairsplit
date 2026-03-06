@@ -32,7 +32,14 @@ export async function POST(req: NextRequest) {
   // 1. Create the shop
   const { data: shop, error: shopErr } = await admin
     .from("shops")
-    .insert({ name: name.trim(), address: address?.trim() || null, phone: phone?.trim() || null })
+    .insert({
+      name: name.trim(),
+      address: address?.trim() || null,
+      phone: phone?.trim() || null,
+      plan: "starter",
+      plan_status: "trialing",
+      trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    })
     .select("id")
     .single()
 

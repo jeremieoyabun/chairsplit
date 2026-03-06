@@ -48,6 +48,25 @@ export function Signup({
       return
     }
 
+    // Check for pending invitation and auto-accept
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: invitation } = await supabase
+        .from("invitations")
+        .select("shop_id, role, commission_rate")
+        .eq("email", email.trim().toLowerCase())
+        .is("accepted_at", null)
+        .maybeSingle()
+
+      if (invitation?.shop_id) {
+        await supabase.from("profiles").update({ shop_id: invitation.shop_id, role: invitation.role }).eq("id", user.id)
+        await supabase.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("shop_id", invitation.shop_id).eq("email", email.trim().toLowerCase())
+        if (invitation.commission_rate) {
+          try { await supabase.from("commission_rules").insert({ shop_id: invitation.shop_id, barber_id: user.id, rate: invitation.commission_rate }) } catch { /* ignore */ }
+        }
+      }
+    }
+
     // Fire welcome email (best-effort, don't block on it)
     fetch("/api/emails/welcome", {
       method: "POST",

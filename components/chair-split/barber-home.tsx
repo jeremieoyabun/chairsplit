@@ -60,6 +60,7 @@ export function BarberHome({
 }) {
   const [userId, setUserId] = useState<string | null>(null)
   const [fullName, setFullName] = useState("")
+  const [shopName, setShopName] = useState<string | null>(null)
   const [visits, setVisits] = useState<DisplayVisit[]>([])
   const [earnings, setEarnings] = useState(0)
   const [revenue, setRevenue] = useState(0)
@@ -122,12 +123,14 @@ export function BarberHome({
 
       const supabase = createClient()
       // Parallel: profile name + unread count
-      const [profileRes, countRes] = await Promise.all([
+      const [profileRes, countRes, shopRes] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
         supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", shop.userId).eq("is_read", false),
+        supabase.from("shops").select("name").eq("id", shop.shopId).single(),
       ])
 
       if (profileRes.data?.full_name) setFullName(profileRes.data.full_name)
+      if (shopRes.data?.name) setShopName(shopRes.data.name)
       setUnreadCount(countRes.count ?? 0)
 
       await loadVisits(shop.userId)
@@ -212,6 +215,11 @@ export function BarberHome({
             <span className="text-[22px] font-bold text-[#111113] leading-tight block">
               Hey, {firstName}
             </span>
+            {shopName && (
+              <span className="text-[13px] font-medium text-[#3B82F6] leading-tight block">
+                {shopName}
+              </span>
+            )}
             <span className="text-[13px] text-[#9CA3AF] leading-tight block">
               {dayLabel}
             </span>

@@ -5,12 +5,14 @@ import { ArrowLeft, Check } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
 import { PLANS, PLAN_LIMITS } from "@/lib/plans"
+import { trialStatus } from "@/lib/trial"
 
 type ShopSub = {
   plan: string
   plan_status: string
   stripe_customer_id: string | null
   barber_count: number
+  trial_ends_at: string | null
 }
 
 function fmt(n: number) {
@@ -46,7 +48,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
       const [shopRes, countRes] = await Promise.all([
         supabase
           .from("shops")
-          .select("plan, plan_status, stripe_customer_id")
+          .select("plan, plan_status, stripe_customer_id, trial_ends_at")
           .eq("id", shop.shopId)
           .single(),
         supabase
@@ -70,7 +72,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
           if (syncJson.synced) {
             const { data: updated } = await supabase
               .from("shops")
-              .select("plan, plan_status, stripe_customer_id")
+              .select("plan, plan_status, stripe_customer_id, trial_ends_at")
               .eq("id", shop.shopId)
               .single()
             setSub({
@@ -78,6 +80,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
               plan_status: updated?.plan_status ?? "inactive",
               stripe_customer_id: updated?.stripe_customer_id ?? null,
               barber_count: barberCount,
+              trial_ends_at: updated?.trial_ends_at ?? null,
             })
             setLoading(false)
             return
@@ -90,6 +93,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
         plan_status: statusVal,
         stripe_customer_id: shopRes.data.stripe_customer_id ?? null,
         barber_count: barberCount,
+        trial_ends_at: shopRes.data.trial_ends_at ?? null,
       })
       setLoading(false)
     }
@@ -139,6 +143,7 @@ export function Subscription({ onBack }: { onBack: () => void }) {
   const currentPlan = sub?.plan ?? "free"
   const isActive = sub?.plan_status === "active" || sub?.plan_status === "trialing"
   const planLimit = PLAN_LIMITS[currentPlan] ?? 0
+  const trial = sub ? trialStatus(sub.trial_ends_at, sub.plan_status) : null
 
   return (
     <div className="flex flex-col min-h-full">
@@ -221,6 +226,26 @@ export function Subscription({ onBack }: { onBack: () => void }) {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Trial banner */}
+        {!loading && trial && (
+          <div className={`mx-5 mt-3 rounded-[14px] px-4 py-3.5 ${
+            trial.expired
+              ? "bg-[#FEF2F2] border border-[#FECACA]"
+              : "bg-[#EFF6FF] border border-[#BFDBFE]"
+          }`}>
+            <p className={`text-[13px] font-semibold ${trial.expired ? "text-[#DC2626]" : "text-[#2563EB]"}`}>
+              {trial.expired
+                ? "Your free trial has ended"
+                : `${trial.daysLeft} day${trial.daysLeft !== 1 ? "s" : ""} left on your free trial`}
+            </p>
+            <p className={`text-[11px] mt-0.5 ${trial.expired ? "text-[#DC2626] opacity-70" : "text-[#2563EB] opacity-70"}`}>
+              {trial.expired
+                ? "Upgrade to keep using all features."
+                : "All Starter features are unlocked. No credit card required."}
+            </p>
           </div>
         )}
 
@@ -338,6 +363,8 @@ export function Subscription({ onBack }: { onBack: () => void }) {
                         ? "Opening…"
                         : isCurrent
                         ? "Current"
+                        : trial && !trial.expired
+                        ? "Upgrade now"
                         : billing === "yearly"
                         ? "Start & Save 15%"
                         : "Start Free"}

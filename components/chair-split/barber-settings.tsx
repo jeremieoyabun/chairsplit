@@ -59,13 +59,17 @@ export function BarberSettings({
 
         const { data: rules } = await supabase
           .from("commission_rules")
-          .select("rate, service_id, services(name)")
+          .select("rate, service_id, barber_id, services(name)")
           .eq("shop_id", shopInfo.shopId)
           .or(`barber_id.eq.${shopInfo.userId},barber_id.is.null`)
           .order("service_id", { ascending: true })
 
         if (rules && rules.length > 0) {
-          const rows: CommissionRow[] = (rules as unknown as { rate: number; service_id: string | null; services: { name: string } | null }[]).map((r) => ({
+          const typed = rules as unknown as { rate: number; service_id: string | null; barber_id: string | null; services: { name: string } | null }[]
+          // If a barber-specific default exists, hide the shop-wide default
+          const hasPersonalDefault = typed.some((r) => !r.service_id && r.barber_id)
+          const filtered = typed.filter((r) => !(hasPersonalDefault && !r.service_id && !r.barber_id))
+          const rows: CommissionRow[] = filtered.map((r) => ({
             label: r.service_id && r.services ? r.services.name : "Default rate",
             value: `${r.rate}%`,
           }))

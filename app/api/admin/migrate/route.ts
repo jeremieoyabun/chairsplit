@@ -17,6 +17,7 @@ ALTER TABLE shops ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
 ALTER TABLE visits ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'line';
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -46,6 +47,23 @@ CREATE POLICY "shop_update_own" ON shops
 DROP POLICY IF EXISTS "shop_insert_own" ON shops;
 CREATE POLICY "shop_insert_own" ON shops
   FOR INSERT WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'barber',
+  commission_rate INTEGER DEFAULT 30,
+  accepted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "invitations_shop_member" ON invitations;
+CREATE POLICY "invitations_shop_member" ON invitations
+  FOR ALL USING (shop_id IN (SELECT shop_id FROM profiles WHERE id = auth.uid()));
+DROP POLICY IF EXISTS "invitations_by_email" ON invitations;
+CREATE POLICY "invitations_by_email" ON invitations
+  FOR SELECT USING (lower(email) = lower((SELECT email FROM auth.users WHERE id = auth.uid())));
 `
 
 export async function GET(req: NextRequest) {
