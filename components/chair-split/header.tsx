@@ -21,6 +21,7 @@ export function Header({
 }) {
   const [shopName, setShopName] = useState("")
   const [shopAddress, setShopAddress] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [bellCount, setBellCount] = useState(0)
   const [trialDays, setTrialDays] = useState<number | null>(null)
 
@@ -43,6 +44,14 @@ export function Header({
         const trial = trialStatus(shopData.trial_ends_at, shopData.plan_status)
         if (trial && !trial.expired) setTrialDays(trial.daysLeft)
       }
+
+      // Load owner avatar
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", shop.userId)
+        .single()
+      if (profile?.avatar_url) setAvatarUrl(profile.avatar_url)
 
       // Unread bell badge: visits since last time user opened notifications
       try {
@@ -71,9 +80,13 @@ export function Header({
           aria-label="Settings"
         >
           {/* Avatar */}
-          <div className="w-12 h-12 rounded-full bg-[#111113] flex items-center justify-center">
-            <span className="text-[16px] font-bold text-[#FFFFFF]">{initials}</span>
-          </div>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-[#111113] flex items-center justify-center">
+              <span className="text-[16px] font-bold text-[#FFFFFF]">{initials}</span>
+            </div>
+          )}
           {/* Gear overlay */}
           <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full bg-[#FFFFFF] shadow-[0_1px_4px_rgba(0,0,0,0.15)] flex items-center justify-center">
             <Settings className="w-[10px] h-[10px] text-[#6B7280]" strokeWidth={2.2} />

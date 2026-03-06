@@ -166,7 +166,6 @@ export function BarberHome({
         supabase.from("shops").select("name").eq("id", shop.shopId).single(),
       ])
 
-      console.log("[BarberHome] profileRes:", JSON.stringify(profileRes.data), "err:", profileRes.error?.message)
       if (profileRes.data?.full_name) setFullName(profileRes.data.full_name)
       if (profileRes.data?.avatar_url) setAvatarUrl(profileRes.data.avatar_url)
       if (shopRes.data?.name) setShopName(shopRes.data.name)
