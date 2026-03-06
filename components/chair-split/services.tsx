@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Bell, BellOff, ChevronRight, Scissors, Percent, Users, User, Star, Store, LogOut } from "lucide-react"
+import { ArrowLeft, Bell, BellOff, ChevronRight, Scissors, Percent, Users, User, Star, Store, LogOut, Package } from "lucide-react"
 import { usePushNotifications } from "@/hooks/usePushNotifications"
 
 type SettingsRow = {
@@ -11,6 +11,7 @@ type SettingsRow = {
 
 const shopSection: SettingsRow[] = [
   { icon: Scissors, label: "Services", key: "services" },
+  { icon: Package, label: "Products", key: "products" },
   { icon: Percent, label: "Commissions", key: "commissions" },
   { icon: Users, label: "Clients", key: "clients" },
 ]
@@ -24,6 +25,7 @@ const accountSection: SettingsRow[] = [
 export function Services({
   onBack,
   onServiceCatalogPress,
+  onProductCatalogPress,
   onCommissionsPress,
   onClientsPress,
   onSubscriptionPress,
@@ -33,6 +35,7 @@ export function Services({
 }: {
   onBack: () => void
   onServiceCatalogPress?: () => void
+  onProductCatalogPress?: () => void
   onCommissionsPress?: () => void
   onClientsPress?: () => void
   onSubscriptionPress?: () => void
@@ -44,6 +47,7 @@ export function Services({
 
   const handlers: Record<string, (() => void) | undefined> = {
     services: onServiceCatalogPress,
+    products: onProductCatalogPress,
     commissions: onCommissionsPress,
     clients: onClientsPress,
     subscription: onSubscriptionPress,

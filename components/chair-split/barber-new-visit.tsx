@@ -15,6 +15,15 @@ type DbService = {
 
 type Service = DbService & { selected: boolean }
 
+type Product = {
+  id: string
+  emoji: string
+  name: string
+  price: number
+  stock: number
+  qty: number
+}
+
 type ClientResult = {
   id: string
   name: string
@@ -37,6 +46,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
   const [barberId, setBarberId] = useState<string | null>(null)
   const [barberName, setBarberName] = useState("")
   const [services, setServices] = useState<Service[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [paymentMethod, setPaymentMethod] = useState<"line" | "cash" | "card" | "promptpay">("line")
   const [linePayQrUrl, setLinePayQrUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,7 +70,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
 
       const supabase = createClient()
       // Parallel: profile name + services + shop QR
-      const [profileRes, svcResult, shopResult] = await Promise.all([
+      const [profileRes, svcResult, shopResult, prodResult] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
         supabase
           .from("services")
@@ -73,6 +83,12 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
           .select("line_pay_qr_url")
           .eq("id", shop.shopId)
           .single(),
+        supabase
+          .from("products")
+          .select("id, name, price, icon, stock")
+          .eq("shop_id", shop.shopId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
       ])
       if (profileRes.data?.full_name) setBarberName(profileRes.data.full_name)
 
@@ -80,6 +96,16 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
       if (shopResult.data?.line_pay_qr_url) setLinePayQrUrl(shopResult.data.line_pay_qr_url)
 
       setServices((svcResult.data ?? []).map((s: DbService) => ({ ...s, selected: false })))
+      setProducts(
+        (prodResult.data ?? []).map((p) => ({
+          id: p.id,
+          emoji: p.icon ?? "\uD83D\uDCE6",
+          name: p.name,
+          price: p.price ?? 0,
+          stock: p.stock ?? 0,
+          qty: 0,
+        }))
+      )
       setLoading(false)
     }
     load()
@@ -135,10 +161,13 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
   }
 
   const selected = services.filter((s) => s.selected)
-  const total = selected.reduce((sum, s) => sum + s.price, 0)
+  const selectedProducts = products.filter((p) => p.qty > 0)
+  const serviceTotal = selected.reduce((sum, s) => sum + s.price, 0)
+  const productTotal = selectedProducts.reduce((sum, p) => sum + p.price * p.qty, 0)
+  const total = serviceTotal + productTotal
 
   const handleConfirm = async () => {
-    if (!shopId || !barberId || selected.length === 0) return
+    if (!shopId || !barberId || (selected.length === 0 && selectedProducts.length === 0)) return
     setSaving(true)
 
     const supabase = createClient()
@@ -186,6 +215,22 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
       })))
 
     if (vsErr) console.error("[BarberNewVisit] visit_services:", vsErr.message)
+
+    // Save visit products + decrement stock
+    if (selectedProducts.length > 0) {
+      await supabase.from("visit_products").insert(
+        selectedProducts.map((p) => ({
+          visit_id: visit.id,
+          product_id: p.id,
+          product_name: p.name,
+          price: p.price,
+          quantity: p.qty,
+        }))
+      )
+      for (const p of selectedProducts) {
+        supabase.from("products").update({ stock: Math.max(0, p.stock - p.qty) }).eq("id", p.id).then(() => {})
+      }
+    }
 
     // Notify shop owner via push (fire and forget)
     fetch("/api/push/notify", {
@@ -305,6 +350,56 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
           </span>
           <div className="grid grid-cols-2 gap-2.5">
             {addons.map(renderChip)}
+          </div>
+        </div>
+      )}
+
+      {/* Products */}
+      {!loading && products.length > 0 && (
+        <div className="px-5 mt-6">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
+            Products
+          </span>
+          <div className="grid grid-cols-2 gap-2.5">
+            {products.map((p) => (
+              <div
+                key={p.id}
+                className={`flex flex-col items-start gap-0.5 rounded-[14px] px-3.5 py-3 transition-all ${
+                  p.qty > 0
+                    ? "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                    : "bg-[#FFFFFF] shadow-[0_1px_6px_rgba(0,0,0,0.04)]"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 w-full">
+                  <span className="text-[15px] leading-none">{p.emoji}</span>
+                  <span className={`text-[13px] font-medium leading-tight flex-1 ${p.qty > 0 ? "text-[#FFFFFF] font-semibold" : "text-[#111113]"}`}>
+                    {p.name}
+                  </span>
+                </div>
+                <span className={`text-[11px] leading-none mt-0.5 ${p.qty > 0 ? "text-[rgba(255,255,255,0.5)]" : "text-[#9CA3AF]"}`}>
+                  {fmt(p.price)}{"\u0E3F"} · stock {p.stock}
+                </span>
+                <div className="flex items-center gap-2 mt-1.5 self-end">
+                  {p.qty > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setProducts((prev) => prev.map((x) => x.id === p.id ? { ...x, qty: x.qty - 1 } : x))}
+                      className="w-7 h-7 rounded-full bg-[rgba(255,255,255,0.15)] flex items-center justify-center text-[#FFFFFF] text-[16px] font-bold leading-none"
+                    >-</button>
+                  )}
+                  {p.qty > 0 && (
+                    <span className="text-[14px] font-bold text-[#FFFFFF] min-w-[18px] text-center">{p.qty}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setProducts((prev) => prev.map((x) => x.id === p.id ? { ...x, qty: Math.min(x.qty + 1, x.stock || 999) } : x))}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold leading-none ${
+                      p.qty > 0 ? "bg-[rgba(255,255,255,0.15)] text-[#FFFFFF]" : "bg-[#F3F4F6] text-[#6B7280]"
+                    }`}
+                  >+</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -464,9 +559,9 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={selected.length === 0 || saving || savedOk}
+          disabled={total === 0 || saving || savedOk}
           className={`w-full h-14 rounded-[14px] bg-[#1A1A1A] text-[16px] font-semibold text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition-all ${
-            selected.length === 0 ? "opacity-30 cursor-not-allowed" : ""
+            total === 0 ? "opacity-30 cursor-not-allowed" : ""
           }`}
         >
           {saving ? "Saving…" : savedOk ? "Visit saved ✓" : "Confirm visit"}

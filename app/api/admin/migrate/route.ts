@@ -114,6 +114,37 @@ DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
 CREATE POLICY "profiles_insert_own" ON profiles
   FOR INSERT WITH CHECK (id = auth.uid());
 
+-- Products: physical items for sale (shampoo, wax, drinks...)
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price NUMERIC NOT NULL DEFAULT 0,
+  icon TEXT,
+  stock INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "products_shop_member" ON products;
+CREATE POLICY "products_shop_member" ON products
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Visit products: products sold during a visit
+CREATE TABLE IF NOT EXISTS visit_products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visit_id UUID NOT NULL REFERENCES visits(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  price NUMERIC NOT NULL DEFAULT 0,
+  quantity INTEGER NOT NULL DEFAULT 1
+);
+ALTER TABLE visit_products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "visit_products_shop_member" ON visit_products;
+CREATE POLICY "visit_products_shop_member" ON visit_products
+  FOR ALL USING (visit_id IN (SELECT id FROM visits WHERE shop_id = auth_user_shop_id()));
+
 CREATE TABLE IF NOT EXISTS invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,

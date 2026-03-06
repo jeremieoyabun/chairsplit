@@ -21,6 +21,15 @@ type Service = {
   selected: boolean
 }
 
+type Product = {
+  id: string
+  emoji: string
+  name: string
+  price: number
+  stock: number
+  qty: number
+}
+
 type ClientResult = { id: string; name: string; phone: string | null }
 
 const COLORS = ["#3B82F6", "#16A34A", "#F59E0B", "#8B5CF6", "#EC4899", "#0D9488"]
@@ -45,6 +54,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
   const [shopId, setShopId] = useState<string | null>(null)
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [selectedBarberIdx, setSelectedBarberIdx] = useState(0)
   const [showBarberPicker, setShowBarberPicker] = useState(false)
 
@@ -68,7 +78,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
       setShopId(shop.shopId)
 
       const supabase = createClient()
-      const [barberRes, svcRes, shopRes] = await Promise.all([
+      const [barberRes, svcRes, shopRes, prodRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, full_name")
@@ -86,6 +96,12 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
           .select("line_pay_qr_url")
           .eq("id", shop.shopId)
           .single(),
+        supabase
+          .from("products")
+          .select("id, name, price, icon, stock")
+          .eq("shop_id", shop.shopId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
       ])
       if (shopRes.data?.line_pay_qr_url) setLinePayQrUrl(shopRes.data.line_pay_qr_url)
 
@@ -105,6 +121,16 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
           price: s.price ?? 0,
           is_addon: s.is_addon ?? false,
           selected: false,
+        }))
+      )
+      setProducts(
+        (prodRes.data ?? []).map((p) => ({
+          id: p.id,
+          emoji: p.icon ?? "\uD83D\uDCE6",
+          name: p.name,
+          price: p.price ?? 0,
+          stock: p.stock ?? 0,
+          qty: 0,
         }))
       )
       setLoading(false)
@@ -165,7 +191,10 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
   }
 
   const selected = services.filter((s) => s.selected)
-  const total = selected.reduce((sum, s) => sum + s.price, 0)
+  const selectedProducts = products.filter((p) => p.qty > 0)
+  const serviceTotal = selected.reduce((sum, s) => sum + s.price, 0)
+  const productTotal = selectedProducts.reduce((sum, p) => sum + p.price * p.qty, 0)
+  const total = serviceTotal + productTotal
   const hasSelection = total > 0
   const barber = barbers[selectedBarberIdx]
 
@@ -221,6 +250,27 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
       setError("Failed to save services. Please try again.")
       setSaving(false)
       return
+    }
+
+    // Save visit products + decrement stock
+    if (selectedProducts.length > 0) {
+      await supabase.from("visit_products").insert(
+        selectedProducts.map((p) => ({
+          visit_id: visitData.id,
+          product_id: p.id,
+          product_name: p.name,
+          price: p.price,
+          quantity: p.qty,
+        }))
+      )
+      // Decrement stock (fire and forget)
+      for (const p of selectedProducts) {
+        supabase
+          .from("products")
+          .update({ stock: Math.max(0, p.stock - p.qty) })
+          .eq("id", p.id)
+          .then(() => {})
+      }
     }
 
     setSaving(false)
@@ -365,6 +415,70 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
           <span className="text-[14px] text-[#9CA3AF] text-center">
             No services configured yet. Add services in Settings → Service Catalog.
           </span>
+        </div>
+      )}
+
+      {/* Products */}
+      {products.length > 0 && (
+        <div className="px-5 mt-6">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
+            Products
+          </span>
+          <div className="grid grid-cols-2 gap-2.5">
+            {products.map((p) => (
+              <div
+                key={p.id}
+                className={`flex flex-col items-start gap-0.5 rounded-[14px] px-3.5 py-3 transition-all ${
+                  p.qty > 0
+                    ? "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                    : "bg-[#FFFFFF] shadow-[0_1px_6px_rgba(0,0,0,0.04)]"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 w-full">
+                  <span className="text-[15px] leading-none">{p.emoji}</span>
+                  <span
+                    className={`text-[13px] font-medium leading-tight flex-1 ${
+                      p.qty > 0 ? "text-[#FFFFFF] font-semibold" : "text-[#111113]"
+                    }`}
+                  >
+                    {p.name}
+                  </span>
+                </div>
+                <span
+                  className={`text-[11px] leading-none mt-0.5 ${
+                    p.qty > 0 ? "text-[rgba(255,255,255,0.5)]" : "text-[#9CA3AF]"
+                  }`}
+                >
+                  {formatPrice(p.price)}{"\u0E3F"} · stock {p.stock}
+                </span>
+                <div className="flex items-center gap-2 mt-1.5 self-end">
+                  {p.qty > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setProducts((prev) => prev.map((x) => x.id === p.id ? { ...x, qty: x.qty - 1 } : x))}
+                      className="w-7 h-7 rounded-full bg-[rgba(255,255,255,0.15)] flex items-center justify-center text-[#FFFFFF] text-[16px] font-bold leading-none"
+                    >
+                      -
+                    </button>
+                  )}
+                  {p.qty > 0 && (
+                    <span className="text-[14px] font-bold text-[#FFFFFF] min-w-[18px] text-center">{p.qty}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setProducts((prev) => prev.map((x) => x.id === p.id ? { ...x, qty: Math.min(x.qty + 1, x.stock || 999) } : x))}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold leading-none ${
+                      p.qty > 0
+                        ? "bg-[rgba(255,255,255,0.15)] text-[#FFFFFF]"
+                        : "bg-[#F3F4F6] text-[#6B7280]"
+                    }`}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -42,6 +42,7 @@ import { SetupShop } from "@/components/chair-split/setup-shop"
 import { Agenda } from "@/components/chair-split/agenda"
 import { ResetPassword } from "@/components/chair-split/reset-password"
 import { Onboarding } from "@/components/chair-split/onboarding"
+import { ProductCatalog } from "@/components/chair-split/product-catalog"
 
 type Screen =
   | "login" | "signup" | "role-select" | "setup-shop" | "reset-password" | "onboarding"
@@ -50,7 +51,7 @@ type Screen =
   | "history"
   | "team" | "barber-detail" | "add-barber"
   | "accounting" | "expenses" | "statements" | "payslips"
-  | "settings" | "service-catalog" | "commissions" | "clients" | "client-detail" | "subscription" | "shop-profile"
+  | "settings" | "service-catalog" | "product-catalog" | "commissions" | "clients" | "client-detail" | "subscription" | "shop-profile"
   | "agenda"
   | "barber-home" | "barber-new-visit" | "barber-history" | "barber-stats" | "barber-settings"
 
@@ -326,6 +327,7 @@ export default function Page() {
         <Services
           onBack={() => setScreen("home")}
           onServiceCatalogPress={() => setScreen("service-catalog")}
+          onProductCatalogPress={() => setScreen("product-catalog")}
           onCommissionsPress={() => setScreen("commissions")}
           onClientsPress={() => setScreen("clients")}
           onSubscriptionPress={() => { setSubscriptionReturnTo("settings"); setScreen("subscription") }}
@@ -335,6 +337,8 @@ export default function Page() {
         />
       ) : screen === "service-catalog" ? (
         <ServiceCatalog onBack={() => { const ret = fromOnboarding; setFromOnboarding(false); setScreen(ret ? "onboarding" : "settings") }} />
+      ) : screen === "product-catalog" ? (
+        <ProductCatalog onBack={() => setScreen("settings")} />
       ) : screen === "commissions" ? (
         <Commissions onBack={() => setScreen("settings")} />
       ) : screen === "clients" ? (

@@ -24,6 +24,7 @@ type DbVisit = {
   visited_at: string
   clients: { name: string } | null
   visit_services: { service_name: string; price: number }[]
+  visit_products: { product_name: string; price: number; quantity: number }[]
   barberName?: string
   barberAvatarUrl?: string | null
 }
@@ -70,12 +71,13 @@ export function VisitDetail({
       if (visitErr || !visitData) { console.error("[VisitDetail] visit:", visitErr?.message); setLoading(false); return }
 
       // 2. Parallel: client name, barber name, services, commission rules
-      const [clientRes, barberRes, servicesRes, rulesRes] = await Promise.all([
+      const [clientRes, barberRes, servicesRes, productsRes, rulesRes] = await Promise.all([
         visitData.client_id
           ? supabase.from("clients").select("name").eq("id", visitData.client_id).single()
           : Promise.resolve({ data: null }),
         supabase.from("profiles").select("full_name, avatar_url").eq("id", visitData.barber_id).single(),
         supabase.from("visit_services").select("service_name, price").eq("visit_id", visitId),
+        supabase.from("visit_products").select("product_name, price, quantity").eq("visit_id", visitId),
         supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
 
@@ -85,6 +87,7 @@ export function VisitDetail({
         ...visitData,
         clients: clientRes.data ? { name: clientRes.data.name } : null,
         visit_services: servicesRes.data ?? [],
+        visit_products: productsRes.data ?? [],
         barberName: barberRes.data?.full_name ?? undefined,
         barberAvatarUrl: barberRes.data?.avatar_url ?? null,
       }
@@ -283,6 +286,34 @@ export function VisitDetail({
           )}
         </div>
       </div>
+
+      {/* Products list */}
+      {(visit?.visit_products ?? []).length > 0 && (
+        <div className="mx-5 mt-5">
+          <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block">
+            Products
+          </span>
+          <div className="mt-2.5 rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+            {visit!.visit_products.map((p, idx) => (
+              <div
+                key={`${p.product_name}-${idx}`}
+                className={`flex items-center justify-between px-[18px] py-4 ${idx < visit!.visit_products.length - 1 ? "border-b border-[#F8F8FA]" : ""}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[18px] leading-none">{"\uD83D\uDCE6"}</span>
+                  <span className="text-[14px] font-medium text-[#111113]">
+                    {p.product_name}{p.quantity > 1 ? ` x${p.quantity}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-[15px] font-semibold text-[#111113]">{fmt(p.price * p.quantity)}</span>
+                  <span className="text-[12px] text-[#9CA3AF] ml-0.5">{"\u0E3F"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Commission card — validated only */}
       {status === "validated" && amount > 0 && (
