@@ -23,6 +23,7 @@ type DbVisit = {
   clients: { name: string } | null
   visit_services: { service_name: string; price: number; icon: string | null }[]
   barberName?: string
+  barberAvatarUrl?: string | null
 }
 
 function fmt(n: number) {
@@ -71,7 +72,7 @@ export function VisitDetail({
         visitData.client_id
           ? supabase.from("clients").select("name").eq("id", visitData.client_id).single()
           : Promise.resolve({ data: null }),
-        supabase.from("profiles").select("full_name").eq("id", visitData.barber_id).single(),
+        supabase.from("profiles").select("full_name, avatar_url").eq("id", visitData.barber_id).single(),
         supabase.from("visit_services").select("service_name, price, icon").eq("visit_id", visitId),
         supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
@@ -81,6 +82,7 @@ export function VisitDetail({
         clients: clientRes.data ? { name: clientRes.data.name } : null,
         visit_services: servicesRes.data ?? [],
         barberName: barberRes.data?.full_name ?? undefined,
+        barberAvatarUrl: barberRes.data?.avatar_url ?? null,
       }
 
       setVisit(vd)
@@ -220,9 +222,13 @@ export function VisitDetail({
       <div className="flex gap-2.5 mx-5 mt-5">
         <div className="flex-1 rounded-[16px] bg-[#FFFFFF] p-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">
-              <span className="text-[12px] font-semibold text-[#FFFFFF]">{getInitials(barberName)}</span>
-            </div>
+            {visit?.barberAvatarUrl ? (
+              <img src={visit.barberAvatarUrl} alt={barberName} className="w-9 h-9 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">
+                <span className="text-[12px] font-semibold text-[#FFFFFF]">{getInitials(barberName)}</span>
+              </div>
+            )}
             <div className="min-w-0">
               <span className="text-[14px] font-semibold text-[#111113] block leading-tight truncate">{barberName}</span>
               <span className="text-[11px] text-[#9CA3AF] block leading-tight">Barber</span>

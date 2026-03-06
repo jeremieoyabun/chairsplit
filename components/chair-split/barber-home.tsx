@@ -61,6 +61,7 @@ export function BarberHome({
   const [userId, setUserId] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [fullName, setFullName] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [shopName, setShopName] = useState<string | null>(null)
   const [visits, setVisits] = useState<DisplayVisit[]>([])
   const [earnings, setEarnings] = useState(0)
@@ -160,12 +161,13 @@ export function BarberHome({
       const supabase = createClient()
       // Parallel: profile name + unread count
       const [profileRes, countRes, shopRes] = await Promise.all([
-        supabase.from("profiles").select("full_name").eq("id", shop.userId).single(),
+        supabase.from("profiles").select("full_name, avatar_url").eq("id", shop.userId).single(),
         supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", shop.userId).eq("is_read", false),
         supabase.from("shops").select("name").eq("id", shop.shopId).single(),
       ])
 
       if (profileRes.data?.full_name) setFullName(profileRes.data.full_name)
+      if (profileRes.data?.avatar_url) setAvatarUrl(profileRes.data.avatar_url)
       if (shopRes.data?.name) setShopName(shopRes.data.name)
       setUnreadCount(countRes.count ?? 0)
 
@@ -242,10 +244,16 @@ export function BarberHome({
           <button
             type="button"
             onClick={onSettingsPress}
-            className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            className="w-11 h-11 rounded-full shrink-0 active:scale-95 transition-transform overflow-hidden"
             aria-label="Profile settings"
           >
-            <span className="text-[14px] font-semibold text-[#FFFFFF]">{initials}</span>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-[#3B82F6] flex items-center justify-center">
+                <span className="text-[14px] font-semibold text-[#FFFFFF]">{initials}</span>
+              </div>
+            )}
           </button>
           <div>
             <span className="text-[22px] font-bold text-[#111113] leading-tight block">

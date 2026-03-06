@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowLeft, ChevronRight, Pencil, Check, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, Camera, ChevronRight, Pencil, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
 
@@ -29,9 +29,12 @@ export function BarberSettings({
   const [commissionRows, setCommissionRows] = useState<CommissionRow[]>([])
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [editField, setEditField] = useState<EditField>(null)
   const [editValue, setEditValue] = useState("")
   const [saving, setSaving] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -42,7 +45,7 @@ export function BarberSettings({
       // Parallel: session (for email) + profile + shop
       const [sessionRes, profileRes, shopRes] = await Promise.all([
         supabase.auth.getSession(),
-        supabase.from("profiles").select("full_name, phone, shop_id").eq("id", shopInfo.userId).single(),
+        supabase.from("profiles").select("full_name, phone, shop_id, avatar_url").eq("id", shopInfo.userId).single(),
         supabase.from("shops").select("name, address").eq("id", shopInfo.shopId).single(),
       ])
 
@@ -52,6 +55,7 @@ export function BarberSettings({
       if (!profile) { setLoading(false); return }
       setFullName(profile.full_name ?? "")
       setPhone(profile.phone ?? "")
+      setAvatarUrl(profile.avatar_url ?? null)
 
       const shop = shopRes.data
       if (shop) {
@@ -113,6 +117,24 @@ export function BarberSettings({
     setEditValue("")
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const shopInfo = await getShop()
+    if (!shopInfo) { setUploading(false); return }
+    const supabase = createClient()
+    const ext = file.name.split(".").pop() ?? "jpg"
+    const path = `${shopInfo.userId}.${ext}`
+    const { error: uploadErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true })
+    if (uploadErr) { console.error("[BarberSettings] upload:", uploadErr.message); setUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path)
+    const url = `${publicUrl}?t=${Date.now()}`
+    await supabase.from("profiles").update({ avatar_url: url }).eq("id", shopInfo.userId)
+    setAvatarUrl(url)
+    setUploading(false)
+  }
+
   const handleSignOut = async () => {
     await createClient().auth.signOut()
     onSignOut?.()
@@ -150,9 +172,29 @@ export function BarberSettings({
         {/* Profile Card */}
         <div className="mx-5 mt-5">
           <div className="rounded-[24px] bg-[#FFFFFF] shadow-[0_2px_16px_rgba(0,0,0,0.06)] px-6 py-6 flex flex-col items-center text-center">
-            <div className="w-[72px] h-[72px] rounded-full bg-[#3B82F6] flex items-center justify-center">
-              <span className="text-[24px] font-bold text-[#FFFFFF]">{initials}</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="relative w-[72px] h-[72px] rounded-full active:scale-95 transition-transform"
+              disabled={uploading}
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+              ) : (
+                <div className="w-full h-full rounded-full bg-[#3B82F6] flex items-center justify-center">
+                  <span className="text-[24px] font-bold text-[#FFFFFF]">{initials}</span>
+                </div>
+              )}
+              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#FFFFFF] shadow-[0_2px_8px_rgba(0,0,0,0.15)] flex items-center justify-center">
+                <Camera className="w-3 h-3 text-[#6B7280]" />
+              </div>
+              {uploading && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <span className="text-[10px] font-semibold text-white">...</span>
+                </div>
+              )}
+            </button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
             <span className="text-[20px] font-bold text-[#111113] mt-3">{displayName}</span>
             <span className="text-[13px] text-[#9CA3AF] mt-1">{email || "—"}</span>
             {shopLabel ? (

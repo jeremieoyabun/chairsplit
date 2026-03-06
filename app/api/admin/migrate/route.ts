@@ -19,6 +19,7 @@ ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
 ALTER TABLE visits ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'line';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,6 +171,9 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+
+  // Create avatars storage bucket (idempotent)
+  await admin.storage.createBucket("avatars", { public: true, allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"], fileSizeLimit: 2 * 1024 * 1024 }).catch(() => {})
 
   // userId can be passed as query param, or we try to get from session
   let userId = req.nextUrl.searchParams.get("userId")

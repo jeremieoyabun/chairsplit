@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, Camera } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
 
@@ -18,15 +18,17 @@ export function Profile({ onBack }: { onBack: () => void }) {
   const [userId, setUserId] = useState<string | null>(null)
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      // Use getShop first, fallback to auth.getUser for barbers without shop
       const shop = await getShop()
       let uid = shop?.userId
       if (!uid) {
@@ -38,10 +40,13 @@ export function Profile({ onBack }: { onBack: () => void }) {
 
       const [sessionRes, profileRes] = await Promise.all([
         supabase.auth.getSession(),
-        supabase.from("profiles").select("full_name").eq("id", uid).single(),
+        supabase.from("profiles").select("full_name, avatar_url").eq("id", uid).single(),
       ])
       setEmail(sessionRes.data.session?.user?.email ?? "")
-      if (profileRes.data) setFullName(profileRes.data.full_name ?? "")
+      if (profileRes.data) {
+        setFullName(profileRes.data.full_name ?? "")
+        setAvatarUrl(profileRes.data.avatar_url ?? null)
+      }
       setLoading(false)
     }
     load()
@@ -65,7 +70,30 @@ export function Profile({ onBack }: { onBack: () => void }) {
     }
   }
 
-  const initials = fullName ? getInitials(fullName) : "—"
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+    setUploading(true)
+    setError(null)
+    const supabase = createClient()
+    const ext = file.name.split(".").pop() ?? "jpg"
+    const path = `${userId}.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true })
+
+    if (uploadErr) { setError(uploadErr.message); setUploading(false); return }
+
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path)
+    const url = `${publicUrl}?t=${Date.now()}`
+
+    await supabase.from("profiles").update({ avatar_url: url }).eq("id", userId)
+    setAvatarUrl(url)
+    setUploading(false)
+  }
+
+  const initials = fullName ? getInitials(fullName) : "\u2014"
 
   return (
     <div className="flex flex-col min-h-full">
@@ -86,7 +114,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
           disabled={saving || loading}
           className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity disabled:opacity-40"
         >
-          {saving ? "…" : saved ? "Saved ✓" : "Save"}
+          {saving ? "\u2026" : saved ? "Saved \u2713" : "Save"}
         </button>
       </div>
 
@@ -95,9 +123,36 @@ export function Profile({ onBack }: { onBack: () => void }) {
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {/* Avatar */}
         <div className="flex flex-col items-center mt-7">
-          <div className="w-[88px] h-[88px] rounded-full bg-[#111113] flex items-center justify-center">
-            <span className="text-[30px] font-bold text-[#FFFFFF]">{initials}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="relative w-[88px] h-[88px] rounded-full active:scale-95 transition-transform"
+            disabled={uploading}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+            ) : (
+              <div className="w-full h-full rounded-full bg-[#111113] flex items-center justify-center">
+                <span className="text-[30px] font-bold text-[#FFFFFF]">{initials}</span>
+              </div>
+            )}
+            <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#FFFFFF] shadow-[0_2px_8px_rgba(0,0,0,0.15)] flex items-center justify-center">
+              <Camera className="w-3.5 h-3.5 text-[#6B7280]" />
+            </div>
+            {uploading && (
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                <span className="text-[11px] font-semibold text-white">...</span>
+              </div>
+            )}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
+          <span className="text-[11px] text-[#9CA3AF] mt-2">Tap to change photo</span>
         </div>
 
         {/* Form */}
@@ -110,7 +165,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
               type="text"
               value={loading ? "" : fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder={loading ? "Loading…" : "Full name"}
+              placeholder={loading ? "Loading\u2026" : "Full name"}
               className={inputClass}
               disabled={loading}
             />
@@ -124,7 +179,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
               type="email"
               value={loading ? "" : email}
               readOnly
-              placeholder={loading ? "Loading…" : ""}
+              placeholder={loading ? "Loading\u2026" : ""}
               className={inputClass + " opacity-60 cursor-not-allowed"}
               disabled
             />

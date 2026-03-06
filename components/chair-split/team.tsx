@@ -8,6 +8,7 @@ import { getShop } from "@/lib/get-shop"
 type BarberRow = {
   id: string
   full_name: string | null
+  avatar_url: string | null
   initials: string
   color: string
   visitCount: number
@@ -72,7 +73,7 @@ export function Team({
       // Load barbers
       const { data: barberProfiles } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, avatar_url")
         .eq("shop_id", shopId)
         .eq("role", "barber")
 
@@ -117,6 +118,7 @@ export function Team({
         return {
           id: b.id,
           full_name: b.full_name,
+          avatar_url: b.avatar_url ?? null,
           initials: getInitials(b.full_name),
           color: colorFor(b.id),
           visitCount: stats.visits,
@@ -219,14 +221,22 @@ export function Team({
                 className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 cursor-pointer active:scale-[0.99] transition-transform"
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: barber.color }}
-                  >
-                    <span className="text-[15px] font-semibold text-[#FFFFFF]">
-                      {barber.initials}
-                    </span>
-                  </div>
+                  {barber.avatar_url ? (
+                    <img
+                      src={barber.avatar_url}
+                      alt={barber.full_name ?? ""}
+                      className="w-12 h-12 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: barber.color }}
+                    >
+                      <span className="text-[15px] font-semibold text-[#FFFFFF]">
+                        {barber.initials}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <span className="text-[17px] font-semibold text-[#111113] block leading-tight">
                       {barber.full_name ?? "\u2014"}
