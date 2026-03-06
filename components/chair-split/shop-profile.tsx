@@ -132,7 +132,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
         </button>
         <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113]">
-          Profil du salon
+          Shop profile
         </h1>
         <button
           type="button"
@@ -140,7 +140,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
           disabled={saving || loading}
           className="text-[14px] font-semibold text-[#3B82F6] active:opacity-60 transition-opacity disabled:opacity-40"
         >
-          {saving ? "…" : saved ? "Saved ✓" : "Enregistrer"}
+          {saving ? "…" : saved ? "Saved ✓" : "Save"}
         </button>
       </div>
 
@@ -161,13 +161,13 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
         <div className="mt-8 px-5 flex flex-col gap-5">
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              Nom du salon
+              Shop name
             </label>
             <input
               type="text"
               value={loading ? "" : name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={loading ? "Loading…" : "Nom du salon"}
+              placeholder={loading ? "Loading…" : "Shop name"}
               className={inputClass}
               disabled={loading}
             />
@@ -175,13 +175,13 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
 
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              Adresse
+              Address
             </label>
             <input
               type="text"
               value={loading ? "" : address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder={loading ? "Loading…" : "Adresse du salon"}
+              placeholder={loading ? "Loading…" : "Shop address"}
               className={inputClass}
               disabled={loading}
             />
@@ -189,7 +189,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
 
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              {"T\u00E9l\u00E9phone"}
+              Phone
             </label>
             <input
               type="tel"
@@ -203,7 +203,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
 
           <div>
             <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-              Devise
+              Currency
             </label>
             <div className="relative">
               <select
@@ -243,7 +243,7 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
                       disabled={qrUploading}
                       className="flex-1 py-2.5 rounded-[10px] bg-[#F4F4F6] text-[13px] font-semibold text-[#374151] active:scale-[0.98] transition-transform disabled:opacity-50"
                     >
-                      {qrUploading ? "Uploading…" : "Remplacer"}
+                      {qrUploading ? "Uploading…" : "Replace"}
                     </button>
                     <button
                       type="button"
@@ -265,10 +265,10 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
                     <Upload className="w-5 h-5 text-[#06C755]" />
                   </div>
                   <span className="text-[13px] font-semibold text-[#111113]">
-                    {qrUploading ? "Uploading…" : "Ajouter le QR Code"}
+                    {qrUploading ? "Uploading…" : "Add QR Code"}
                   </span>
                   <span className="text-[11px] text-[#9CA3AF]">
-                    PNG ou JPG · Affiché à la caisse
+                    PNG or JPG · Shown at checkout
                   </span>
                 </button>
               )}
@@ -291,10 +291,10 @@ export function ShopProfile({ onBack }: { onBack: () => void }) {
               type="button"
               className="text-[14px] font-medium text-[#DC2626] active:opacity-60 transition-opacity"
             >
-              Supprimer le salon
+              Delete shop
             </button>
             <span className="text-[12px] text-[#D1D5DB]">
-              {"Action irr\u00E9versible"}
+              This action is irreversible
             </span>
           </div>
         </div>

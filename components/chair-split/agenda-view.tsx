@@ -13,7 +13,7 @@ type CalEvent = {
 
 function formatTime(iso: string) {
   if (!iso) return ""
-  return new Date(iso).toLocaleTimeString("fr-FR", {
+  return new Date(iso).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
   })

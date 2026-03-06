@@ -12,7 +12,6 @@ type DbVisit = {
   barber_id: string
   clients: { name: string } | null
   visit_services: { service_name: string }[]
-  barber: { full_name: string } | null
 }
 
 type DisplayVisit = {
@@ -75,7 +74,7 @@ function getRange(segment: number): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-export function History({ onVisitPress }: { onVisitPress?: (id: string) => void }) {
+export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: string) => void; onDraftPress?: (id: string) => void }) {
   const [activeSegment, setActiveSegment] = useState(1)
   const [dayGroups, setDayGroups] = useState<DayGroup[]>([])
   const [kpis, setKpis] = useState({ visits: 0, revenue: 0, commissions: 0 })
@@ -105,7 +104,7 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
       // Load visits
       const { data: raw, error } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, barber_id, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
+        .select("id, total_amount, status, visited_at, barber_id, clients(name), visit_services(service_name)")
         .eq("shop_id", shop.shopId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -114,6 +113,17 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
       if (error) { console.error("[History] visits:", error.message); setLoading(false); return }
 
       const rows = (raw ?? []) as unknown as DbVisit[]
+
+      // Batch-fetch barber names
+      const barberIds = [...new Set(rows.map((v) => v.barber_id).filter(Boolean))]
+      const barberNames: Record<string, string> = {}
+      if (barberIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", barberIds)
+        for (const p of profiles ?? []) barberNames[p.id] = p.full_name ?? "Unknown"
+      }
 
       // KPIs — revenue and commissions from validated only
       const validated = rows.filter((v) => v.status === "validated")
@@ -141,14 +151,14 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
             weekday: "short", month: "short", day: "numeric",
           }).toUpperCase(),
           visits: visits.map((v) => {
-            const barberName = v.barber?.full_name ?? "Unknown"
+            const barberName = barberNames[v.barber_id] ?? "Unknown"
             return {
               id: v.id,
               initials: getInitials(barberName),
               name: v.clients?.name ?? "Walk-in",
               services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
               amount: fmt(v.total_amount ?? 0),
-              time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
               color: colorFor(barberName),
               status: v.status as "validated" | "draft" | "cancelled",
             }
@@ -233,7 +243,7 @@ export function History({ onVisitPress }: { onVisitPress?: (id: string) => void 
                 return (
                   <div
                     key={`${visit.id}-${i}`}
-                    onClick={() => onVisitPress?.(visit.id)}
+                    onClick={() => visit.status === "draft" ? onDraftPress?.(visit.id) : onVisitPress?.(visit.id)}
                     className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] w-full text-left active:scale-[0.99] transition-transform cursor-pointer"
                   >
                     <div

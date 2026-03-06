@@ -9,8 +9,6 @@ import { AgendaView } from "./agenda-view"
 type DbVisit = {
   id: string
   total_amount: number
-  commission_amount: number
-  commission_rate: number
   status: string
   visited_at: string
   clients: { name: string } | null
@@ -59,6 +57,7 @@ export function BarberHome({
   onViewAllPress?: () => void
 }) {
   const [userId, setUserId] = useState<string | null>(null)
+  const [shopId, setShopId] = useState<string | null>(null)
   const [fullName, setFullName] = useState("")
   const [shopName, setShopName] = useState<string | null>(null)
   const [visits, setVisits] = useState<DisplayVisit[]>([])
@@ -71,32 +70,43 @@ export function BarberHome({
   const [unreadCount, setUnreadCount] = useState(0)
   const [validatedToast, setValidatedToast] = useState<string | null>(null)
 
-  const loadVisits = async (uid: string) => {
+  const commissionRateRef = { current: 30 }
+
+  const loadVisits = async (uid: string, shopId: string) => {
     const supabase = createClient()
     const { start, end } = todayRange()
-    const { data: raw, error } = await supabase
-      .from("visits")
-      .select("id, total_amount, commission_amount, commission_rate, status, visited_at, clients(name), visit_services(service_name)")
-      .eq("barber_id", uid)
-      .gte("visited_at", start)
-      .lt("visited_at", end)
-      .order("visited_at", { ascending: true })
+    const [visitRes, rulesRes] = await Promise.all([
+      supabase
+        .from("visits")
+        .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
+        .eq("barber_id", uid)
+        .gte("visited_at", start)
+        .lt("visited_at", end)
+        .order("visited_at", { ascending: true }),
+      supabase
+        .from("commission_rules")
+        .select("barber_id, rate")
+        .eq("shop_id", shopId),
+    ])
 
-    if (error) { console.error("[BarberHome]", error.message); return }
+    if (visitRes.error) { console.error("[BarberHome]", visitRes.error.message); return }
 
-    const rows = (raw ?? []) as unknown as DbVisit[]
+    // Calculate commission rate
+    const myRule = rulesRes.data?.find((r) => r.barber_id === uid)
+    const globalRule = rulesRes.data?.find((r) => !r.barber_id)
+    const rate = myRule?.rate ?? globalRule?.rate ?? 30
+    commissionRateRef.current = rate
+
+    const rows = (visitRes.data ?? []) as unknown as DbVisit[]
     const validated = rows.filter((v) => v.status === "validated")
     const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
-    const totalCommission = validated.reduce((s, v) => s + v.commission_amount, 0)
-    const avgRate = validated.length > 0
-      ? validated.reduce((s, v) => s + v.commission_rate, 0) / validated.length
-      : null
+    const totalCommission = Math.round(totalRevenue * rate / 100)
     const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
 
     setRevenue(totalRevenue)
     setEarnings(totalCommission)
     setVisitCount(rows.length)
-    setCommissionPct(avgRate !== null ? Math.round(avgRate) : null)
+    setCommissionPct(rate)
     setAvgTicket(Math.round(avgTkt))
 
     setVisits(
@@ -107,7 +117,7 @@ export function BarberHome({
           client: v.clients?.name ?? "Walk-in",
           services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
           amount: fmt(v.total_amount),
-          time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
           status: v.status as "validated" | "draft",
         }))
     )
@@ -120,6 +130,7 @@ export function BarberHome({
       const shop = await getShop()
       if (!shop) { setLoading(false); return }
       setUserId(shop.userId)
+      setShopId(shop.shopId)
 
       const supabase = createClient()
       // Parallel: profile name + unread count
@@ -133,14 +144,14 @@ export function BarberHome({
       if (shopRes.data?.name) setShopName(shopRes.data.name)
       setUnreadCount(countRes.count ?? 0)
 
-      await loadVisits(shop.userId)
+      await loadVisits(shop.userId, shop.shopId)
     }
     load()
   }, [])
 
   // Realtime — visits UPDATE (detect validation) + notifications INSERT (unread dot)
   useEffect(() => {
-    if (!userId) return
+    if (!userId || !shopId) return
     const supabase = createClient()
 
     const channel = supabase
@@ -157,7 +168,7 @@ export function BarberHome({
           setValidatedToast(`Visit validated ✓${amount ? ` — ${fmt(amount)}\u0E3F` : ""}`)
           setTimeout(() => setValidatedToast(null), 4000)
         }
-        loadVisits(userId)
+        loadVisits(userId, shopId)
       })
       // When a new notification arrives for this barber
       .on("postgres_changes", {
@@ -171,7 +182,7 @@ export function BarberHome({
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [userId])
+  }, [userId, shopId])
 
   // Reset unread count when notifications screen is opened
   const handleNotificationsPress = () => {

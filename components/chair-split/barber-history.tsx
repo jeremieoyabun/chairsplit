@@ -145,7 +145,7 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
             client: v.clients?.name ?? "Walk-in",
             services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
             amount: fmt(v.total_amount ?? 0),
-            time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+            time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
             status: v.status as "validated" | "draft" | "cancelled",
           })),
         }))

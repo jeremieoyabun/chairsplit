@@ -65,6 +65,39 @@ DROP POLICY IF EXISTS "visit_services_shop_member" ON visit_services;
 CREATE POLICY "visit_services_shop_member" ON visit_services
   FOR ALL USING (visit_id IN (SELECT id FROM visits WHERE shop_id = auth_user_shop_id()));
 
+-- Commission rules: shop members can manage rules in their shop
+ALTER TABLE commission_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "commission_rules_shop_member" ON commission_rules;
+CREATE POLICY "commission_rules_shop_member" ON commission_rules
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Services: shop members can manage services in their shop
+ALTER TABLE services ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "services_shop_member" ON services;
+CREATE POLICY "services_shop_member" ON services
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Clients: shop members can manage clients in their shop
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "clients_shop_member" ON clients;
+CREATE POLICY "clients_shop_member" ON clients
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Expenses: shop members can manage expenses in their shop
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "expenses_shop_member" ON expenses;
+CREATE POLICY "expenses_shop_member" ON expenses
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Notifications: users can manage their own notifications
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "notifications_own" ON notifications;
+CREATE POLICY "notifications_own" ON notifications
+  FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "notifications_insert_shop" ON notifications;
+CREATE POLICY "notifications_insert_shop" ON notifications
+  FOR INSERT WITH CHECK (true);
+
 -- Allow users to see profiles of people in the same shop
 DROP POLICY IF EXISTS "profiles_same_shop" ON profiles;
 CREATE POLICY "profiles_same_shop" ON profiles

@@ -65,6 +65,7 @@ export default function Page() {
   const [pendingPlan, setPendingPlan] = useState<{ plan: string; billing: string } | null>(null)
   const [subscriptionReturnTo, setSubscriptionReturnTo] = useState<Screen>("settings")
   const [fromOnboarding, setFromOnboarding] = useState(false)
+  const [visitReturnTo, setVisitReturnTo] = useState<Screen>("home")
   const [refreshKey, setRefreshKey] = useState(0)
   const handleRefresh = useCallback(() => {
     clearShopCache()
@@ -281,8 +282,8 @@ export default function Page() {
             onAgendaPress={() => setScreen("agenda")}
           />
           <RecentVisits
-            onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }}
-            onDraftPress={(id) => { setSelectedVisitId(id); setScreen("visit-draft") }}
+            onVisitPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("home"); setScreen("visit-detail") }}
+            onDraftPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("home"); setScreen("visit-draft") }}
             onViewAllPress={() => setScreen("history")}
           />
           <BottomNav {...navProps} />
@@ -293,7 +294,10 @@ export default function Page() {
         <Profile onBack={() => setScreen("settings")} />
       ) : screen === "history" ? (
         <>
-          <History onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }} />
+          <History
+            onVisitPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("history"); setScreen("visit-detail") }}
+            onDraftPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("history"); setScreen("visit-draft") }}
+          />
           <BottomNav {...navProps} />
         </>
       ) : screen === "team" ? (
@@ -358,9 +362,9 @@ export default function Page() {
           onConfirm={() => { const ret = fromOnboarding; setFromOnboarding(false); setNotification({ type: "success", message: "Visit confirmed!" }); setScreen(ret ? "onboarding" : "home") }}
         />
       ) : screen === "visit-detail" ? (
-        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="validated" />
+        <VisitDetail onBack={() => setScreen(visitReturnTo)} visitId={selectedVisitId} status="validated" />
       ) : screen === "visit-draft" ? (
-        <VisitDetail onBack={() => setScreen("home")} visitId={selectedVisitId} status="draft" />
+        <VisitDetail onBack={() => setScreen(visitReturnTo)} visitId={selectedVisitId} status="draft" />
       ) : screen === "agenda" ? (
         <Agenda onBack={() => setScreen("home")} />
 
@@ -378,7 +382,7 @@ export default function Page() {
         <BarberNewVisit onBack={() => setScreen("barber-home")} />
       ) : screen === "barber-history" ? (
         <>
-          <BarberHistory onVisitPress={(id) => { setSelectedVisitId(id); setScreen("visit-detail") }} />
+          <BarberHistory onVisitPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("barber-history"); setScreen("visit-detail") }} />
           <BarberBottomNav {...barberNavProps} />
         </>
       ) : screen === "barber-stats" ? (

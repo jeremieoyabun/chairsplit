@@ -65,14 +65,26 @@ export function Notifications({ onBack }: { onBack: () => void }) {
       const supabase = createClient()
       const { data: raw } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, clients(name), barber:profiles!barber_id(full_name)")
+        .select("id, barber_id, total_amount, status, visited_at, clients(name)")
         .eq("shop_id", shop.shopId)
         .order("visited_at", { ascending: false })
         .limit(30)
 
       const rows = (raw ?? []) as any[]
-      const notifs: NotifItem[] = rows.map((v) => {
-        const barberName = (v.barber as { full_name: string } | null)?.full_name ?? "A barber"
+
+      // Batch-fetch barber names
+      const barberIds = [...new Set(rows.map((v: any) => v.barber_id).filter(Boolean))]
+      const barberNameMap: Record<string, string> = {}
+      if (barberIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", barberIds)
+        for (const p of profiles ?? []) barberNameMap[p.id] = p.full_name ?? "A barber"
+      }
+
+      const notifs: NotifItem[] = rows.map((v: any) => {
+        const barberName = barberNameMap[v.barber_id] ?? "A barber"
         const clientName = (v.clients as { name: string } | null)?.name ?? "Walk-in"
         const amtStr = fmt(v.total_amount ?? 0)
         const isValidated = v.status === "validated"

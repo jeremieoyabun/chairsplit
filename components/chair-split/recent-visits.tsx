@@ -6,12 +6,12 @@ import { getShop } from "@/lib/get-shop"
 
 type DbVisit = {
   id: string
+  barber_id: string
   total_amount: number
   status: string
   visited_at: string
   clients: { name: string } | null
   visit_services: { service_name: string }[]
-  barber: { full_name: string } | null
 }
 
 type DisplayVisit = {
@@ -55,16 +55,16 @@ function todayRange() {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-function toDisplay(rows: DbVisit[]): DisplayVisit[] {
+function toDisplay(rows: DbVisit[], barberNames: Record<string, string>): DisplayVisit[] {
   return rows.map((v) => {
-    const barberName = v.barber?.full_name ?? "Unknown"
+    const barberName = barberNames[v.barber_id] ?? "Unknown"
     return {
       id: v.id,
       initials: getInitials(barberName),
       name: v.clients?.name ?? "Walk-in",
       services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
       amount: fmt(v.total_amount),
-      time: new Date(v.visited_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+      time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       color: colorFor(barberName),
       status: v.status as "validated" | "draft" | "cancelled",
     }
@@ -89,14 +89,27 @@ export function RecentVisits({
     const { start, end } = todayRange()
     const { data: raw, error } = await supabase
       .from("visits")
-      .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name), barber:profiles!barber_id(full_name)")
+      .select("id, barber_id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
       .eq("shop_id", sid)
       .gte("visited_at", start)
       .lt("visited_at", end)
       .order("visited_at", { ascending: true })
 
     if (error) { console.error("[RecentVisits]", error.message); return }
-    setVisits(toDisplay((raw ?? []) as unknown as DbVisit[]))
+    const rows = (raw ?? []) as unknown as DbVisit[]
+
+    // Batch-fetch barber names
+    const barberIds = [...new Set(rows.map((v) => v.barber_id).filter(Boolean))]
+    const barberNames: Record<string, string> = {}
+    if (barberIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", barberIds)
+      for (const p of profiles ?? []) barberNames[p.id] = p.full_name ?? "Unknown"
+    }
+
+    setVisits(toDisplay(rows, barberNames))
     setLoading(false)
   }
 
