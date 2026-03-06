@@ -37,11 +37,9 @@ function getInitials(name: string) {
 export function VisitDetail({
   onBack,
   visitId,
-  status: initialStatus = "validated",
 }: {
   onBack: () => void
   visitId?: string | null
-  status?: "validated" | "draft"
 }) {
   const [visit, setVisit] = useState<DbVisit | null>(null)
   const [loading, setLoading] = useState(!!visitId)
@@ -147,7 +145,7 @@ export function VisitDetail({
     )
   }
 
-  const status = (visit?.status ?? initialStatus) as "validated" | "draft" | "cancelled"
+  const status = (visit?.status ?? "draft") as "validated" | "draft" | "cancelled"
   const isDraft = status === "draft"
   const barberName = visit?.barberName ?? "Unknown"
   const clientName = visit?.clients?.name ?? "Walk-in"
@@ -161,16 +159,16 @@ export function VisitDetail({
   return (
     <div className="flex flex-col min-h-full">
       {/* Top bar */}
-      <div className="flex items-center px-5 pt-4 pb-3">
+      <div className="flex items-center px-4 pt-4 pb-3">
         <button
           type="button"
           onClick={onBack}
-          className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
+          className="w-12 h-12 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+          <ArrowLeft className="w-5 h-5 text-[#111113]" />
         </button>
-        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-10">
+        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-12">
           Visit detail
         </h1>
       </div>

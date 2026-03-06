@@ -361,10 +361,8 @@ export default function Page() {
           onBack={() => { const ret = fromOnboarding; setFromOnboarding(false); setScreen(ret ? "onboarding" : "home") }}
           onConfirm={() => { const ret = fromOnboarding; setFromOnboarding(false); setNotification({ type: "success", message: "Visit confirmed!" }); setScreen(ret ? "onboarding" : "home") }}
         />
-      ) : screen === "visit-detail" ? (
-        <VisitDetail onBack={() => setScreen(visitReturnTo)} visitId={selectedVisitId} status="validated" />
-      ) : screen === "visit-draft" ? (
-        <VisitDetail onBack={() => setScreen(visitReturnTo)} visitId={selectedVisitId} status="draft" />
+      ) : screen === "visit-detail" || screen === "visit-draft" ? (
+        <VisitDetail onBack={() => setScreen(visitReturnTo)} visitId={selectedVisitId} />
       ) : screen === "agenda" ? (
         <Agenda onBack={() => setScreen("home")} />
 
