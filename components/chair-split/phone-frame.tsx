@@ -2,7 +2,7 @@
 
 import { type ReactNode, useRef, useState, useCallback } from "react"
 
-export function PhoneFrame({ children }: { children: ReactNode }) {
+export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pulling, setPulling] = useState(false)
   const [pullY, setPullY] = useState(0)
@@ -12,6 +12,9 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const el = scrollRef.current
     if (!el || el.scrollTop > 0) return
+    // Don't intercept taps on interactive elements (buttons, links, inputs)
+    const target = e.target as HTMLElement
+    if (target.closest("button, a, input, select, textarea, [role='button']")) return
     startY.current = e.touches[0].clientY
     isPulling.current = true
   }, [])
@@ -28,11 +31,14 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   }, [])
 
   const onTouchEnd = useCallback(() => {
-    if (pulling) window.location.reload()
+    if (pulling) {
+      if (onRefresh) onRefresh()
+      else window.location.reload()
+    }
     isPulling.current = false
     setPullY(0)
     setPulling(false)
-  }, [pulling])
+  }, [pulling, onRefresh])
 
   return (
     // Mobile: full-screen, no chrome

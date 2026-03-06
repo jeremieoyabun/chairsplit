@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { UserRole } from "@/lib/types"
 import { clearShopCache } from "@/lib/get-shop"
@@ -65,6 +65,11 @@ export default function Page() {
   const [pendingPlan, setPendingPlan] = useState<{ plan: string; billing: string } | null>(null)
   const [subscriptionReturnTo, setSubscriptionReturnTo] = useState<Screen>("settings")
   const [fromOnboarding, setFromOnboarding] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const handleRefresh = useCallback(() => {
+    clearShopCache()
+    setRefreshKey((k) => k + 1)
+  }, [])
 
   // Auto-dismiss notification
   useEffect(() => {
@@ -188,7 +193,7 @@ export default function Page() {
   }
 
   return (
-    <PhoneFrame>
+    <PhoneFrame onRefresh={handleRefresh}>
       {/* URL-param notification toast */}
       {notification && (
         <div
@@ -222,6 +227,7 @@ export default function Page() {
         </div>
       )}
 
+      <div key={refreshKey} className="contents">
       {screen === "login" ? (
         <Login
           onLogin={handleLogin}
@@ -386,6 +392,7 @@ export default function Page() {
           onSignOut={handleSignOut}
         />
       ) : null}
+      </div>
     </PhoneFrame>
   )
 }

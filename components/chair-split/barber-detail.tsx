@@ -118,8 +118,8 @@ export function BarberDetail({
       const cRules: CommissionRule[] = []
       if (globalRule) {
         cRules.push({
-          service: "Tous les services",
-          pillLabel: "d\u00E9faut",
+          service: "All services",
+          pillLabel: "default",
           pillBg: "#F3F4F6",
           pillText: "#6B7280",
           rate: `${globalRule.rate}%`,
@@ -127,8 +127,8 @@ export function BarberDetail({
       }
       if (barberRule) {
         cRules.push({
-          service: "R\u00E8gle sp\u00E9cifique",
-          pillLabel: "sp\u00E9cifique",
+          service: "Custom rule",
+          pillLabel: "custom",
           pillBg: "#FEF9EE",
           pillText: "#D97706",
           rate: `${barberRule.rate}%`,
@@ -136,8 +136,8 @@ export function BarberDetail({
       }
       if (cRules.length === 0) {
         cRules.push({
-          service: "Tous les services",
-          pillLabel: "d\u00E9faut",
+          service: "All services",
+          pillLabel: "default",
           pillBg: "#F3F4F6",
           pillText: "#6B7280",
           rate: `${rate}%`,
@@ -204,7 +204,7 @@ export function BarberDetail({
         >
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
         </button>
-        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-10">Profil</h1>
+        <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-10">Profile</h1>
       </div>
 
       {/* Hero */}
@@ -219,7 +219,7 @@ export function BarberDetail({
           {barberName ?? "—"}
         </span>
         {memberSince && (
-          <span className="text-[13px] text-[#9CA3AF] mt-1">Actif depuis {memberSince}</span>
+          <span className="text-[13px] text-[#9CA3AF] mt-1">Active since {memberSince}</span>
         )}
       </div>
 
@@ -248,8 +248,8 @@ export function BarberDetail({
         <div className="rounded-[20px] bg-[#1A1A1A] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
           <div className="flex gap-2.5">
             {[
-              { value: loading ? "—" : String(kpis.visits), label: "visites" },
-              { value: loading ? "—" : fmt(kpis.revenue), label: "CA", hasBaht: true },
+              { value: loading ? "—" : String(kpis.visits), label: "visits" },
+              { value: loading ? "—" : fmt(kpis.revenue), label: "revenue", hasBaht: true },
               { value: loading ? "—" : fmt(kpis.commission), label: "commission", hasBaht: true },
             ].map((kpi) => (
               <div
@@ -272,7 +272,7 @@ export function BarberDetail({
       {/* Recent visits */}
       <div className="px-5 mt-7">
         <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
-          {"Visites r\u00E9centes"}
+          Recent visits
         </span>
         {loading ? (
           <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 text-center">
@@ -280,7 +280,7 @@ export function BarberDetail({
           </div>
         ) : recentVisits.length === 0 ? (
           <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 text-center">
-            <span className="text-[13px] text-[#9CA3AF]">Aucune visite sur cette p\u00E9riode</span>
+            <span className="text-[13px] text-[#9CA3AF]">No visits for this period</span>
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
@@ -315,7 +315,7 @@ export function BarberDetail({
       {/* Commission rules */}
       <div className="px-5 mt-7">
         <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9CA3AF] block mb-3">
-          {"R\u00C8GLES APPLIQU\u00C9ES"}
+          Commission rules
         </span>
         <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           {commissionRules.map((rule, idx) => (
