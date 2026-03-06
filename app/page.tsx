@@ -131,10 +131,7 @@ export default function Page() {
       if (role === "barber") { setScreen("barber-home"); return }
       // Check trial expiry for owners (fire-and-forget)
       if (shopId) fetch("/api/shop/expire-trial", { method: "POST" }).catch(() => {})
-      if (!shopId) { setScreen("setup-shop"); return }
-      // Show onboarding for new owners who haven't completed it yet
-      const onboardingDone = typeof window !== "undefined" && localStorage.getItem("cs_onboarding_done") === "true"
-      setScreen(onboardingDone ? "home" : "onboarding")
+      setScreen(shopId ? "home" : "setup-shop")
     })
   }, [])
 
