@@ -2,6 +2,7 @@
 
 import React from "react"
 import { Plus, Settings } from "lucide-react"
+import { haptic } from "@/lib/haptic"
 
 function TodayIcon({ color }: { color: string }) {
   return (
@@ -59,7 +60,7 @@ export function BarberBottomNav({
       <div className="absolute left-1/2 -translate-x-1/2 -top-[26px] z-10">
         <button
           type="button"
-          onClick={onPlusPress}
+          onClick={() => { haptic("medium"); onPlusPress?.() }}
           className="w-[60px] h-[60px] rounded-full bg-[#1A1A1A] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.25)] ring-[4px] ring-[#F0F0F3] active:scale-95 transition-transform"
           aria-label="New visit"
         >
@@ -77,7 +78,7 @@ export function BarberBottomNav({
               <button
                 key={tab.label}
                 type="button"
-                onClick={() => onTabChange?.(tab.index)}
+                onClick={() => { haptic(); onTabChange?.(tab.index) }}
                 className="flex flex-col items-center justify-center w-14 transition-all duration-200"
                 aria-label={tab.label}
               >
@@ -105,7 +106,7 @@ export function BarberBottomNav({
                 <button
                   key={tab.label}
                   type="button"
-                  onClick={() => onTabChange?.(tab.index)}
+                  onClick={() => { haptic(); onTabChange?.(tab.index) }}
                   className="flex flex-col items-center justify-center w-14 transition-all duration-200"
                   aria-label={tab.label}
                 >
@@ -126,7 +127,7 @@ export function BarberBottomNav({
               <button
                 key={tab.label}
                 type="button"
-                onClick={() => onTabChange?.(tab.index)}
+                onClick={() => { haptic(); onTabChange?.(tab.index) }}
                 className="flex flex-col items-center justify-center w-14 transition-all duration-200"
                 aria-label={tab.label}
               >

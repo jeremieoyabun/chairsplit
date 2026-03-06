@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { ArrowLeft, User } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
+import { haptic } from "@/lib/haptic"
+import { fireConfetti } from "@/lib/confetti"
 
 const PAYMENT_LABELS: Record<string, string> = {
   line: "LINE Pay",
@@ -77,13 +79,7 @@ export function VisitDetail({
         supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
 
-      console.log("[VisitDetail] ALL RESULTS", {
-        services: servicesRes.data?.length ?? 0,
-        servicesError: servicesRes.error?.message ?? "none",
-        servicesData: servicesRes.data,
-        barber: barberRes.data?.full_name,
-        visitId,
-      })
+
 
       const vd: DbVisit = {
         ...visitData,
@@ -110,6 +106,8 @@ export function VisitDetail({
     const supabase = createClient()
     const { error } = await supabase.from("visits").update({ status: "validated" }).eq("id", visit.id)
     if (error) { setActionError(error.message); setActionLoading(false); return }
+    haptic("heavy")
+    fireConfetti()
     setVisit((v) => v ? { ...v, status: "validated" } : v)
     // Notify the barber in-app
     await supabase.from("notifications").insert({
@@ -176,7 +174,7 @@ export function VisitDetail({
       <div className="flex items-center px-4 pt-4 pb-3">
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => { haptic(); onBack() }}
           className="w-12 h-12 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >
