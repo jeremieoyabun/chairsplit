@@ -72,6 +72,7 @@ export function BarberDetail({
   const [barberName, setBarberName] = useState<string | null>(null)
   const [barberColor, setBarberColor] = useState("#3B82F6")
   const [barberInitials, setBarberInitials] = useState("?")
+  const [barberAvatarUrl, setBarberAvatarUrl] = useState<string | null>(null)
   const [kpis, setKpis] = useState({ visits: 0, revenue: 0, commission: 0 })
   const [recentVisits, setRecentVisits] = useState<RecentVisit[]>([])
   const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([])
@@ -89,7 +90,7 @@ export function BarberDetail({
       // Load barber profile
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, shop_id, created_at")
+        .select("full_name, shop_id, created_at, avatar_url")
         .eq("id", barberId)
         .single()
 
@@ -97,6 +98,7 @@ export function BarberDetail({
       setBarberName(name)
       setBarberColor(colorFor(barberId))
       setBarberInitials(getInitials(name))
+      if (profile?.avatar_url) setBarberAvatarUrl(profile.avatar_url)
       if (profile?.created_at) {
         setMemberSince(
           new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })
@@ -199,7 +201,8 @@ export function BarberDetail({
       <div className="flex items-center px-5 pt-4 pb-3">
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => { haptic(); onBack() }}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); haptic(); onBack() }}
           className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >
@@ -210,12 +213,16 @@ export function BarberDetail({
 
       {/* Hero */}
       <div className="flex flex-col items-center px-5 pt-6 pb-2">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: barberColor }}
-        >
-          <span className="text-[28px] font-bold text-[#FFFFFF]">{barberInitials}</span>
-        </div>
+        {barberAvatarUrl ? (
+          <img src={barberAvatarUrl} alt={barberName ?? ""} className="w-20 h-20 rounded-full object-cover" />
+        ) : (
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: barberColor }}
+          >
+            <span className="text-[28px] font-bold text-[#FFFFFF]">{barberInitials}</span>
+          </div>
+        )}
         <span className="text-[24px] font-bold text-[#111113] mt-3.5 leading-tight">
           {barberName ?? "—"}
         </span>
