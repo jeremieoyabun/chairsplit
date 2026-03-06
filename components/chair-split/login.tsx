@@ -35,7 +35,7 @@ export function Login({
     setLoading(true)
 
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
       setError(authError.message)
@@ -43,13 +43,13 @@ export function Login({
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = authData.user
 
     // Check for a pending invitation for this email and auto-accept it
     const { data: invitation } = await supabase
       .from("invitations")
       .select("shop_id, role, commission_rate")
-      .eq("email", user!.email!.toLowerCase())
+      .eq("email", user.email!.toLowerCase())
       .is("accepted_at", null)
       .maybeSingle()
 
@@ -57,16 +57,16 @@ export function Login({
       await supabase
         .from("profiles")
         .update({ shop_id: invitation.shop_id, role: invitation.role })
-        .eq("id", user!.id)
+        .eq("id", user.id)
       await supabase
         .from("invitations")
         .update({ accepted_at: new Date().toISOString() })
         .eq("shop_id", invitation.shop_id)
-        .eq("email", user!.email!.toLowerCase())
+        .eq("email", user.email!.toLowerCase())
       if (invitation.commission_rate) {
         await supabase.from("commission_rules").insert({
           shop_id: invitation.shop_id,
-          barber_id: user!.id,
+          barber_id: user.id,
           rate: invitation.commission_rate,
         })
       }
@@ -76,11 +76,12 @@ export function Login({
     }
 
     // Normal flow: fetch profile to get role and shop_id
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, shop_id")
-      .eq("id", user!.id)
-      .single()
+    // Retry once if the first attempt returns null (RLS timing)
+    let profile = (await supabase.from("profiles").select("role, shop_id").eq("id", user.id).single()).data
+    if (!profile) {
+      await new Promise(r => setTimeout(r, 500))
+      profile = (await supabase.from("profiles").select("role, shop_id").eq("id", user.id).single()).data
+    }
 
     setLoading(false)
     onLogin((profile?.role as UserRole) ?? "barber", profile?.shop_id ?? null)
