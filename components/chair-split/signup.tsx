@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Eye, EyeOff } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 const inputClass =
@@ -21,6 +22,7 @@ export function Signup({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checkEmail, setCheckEmail] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSignup = async () => {
     if (!name || !email || !password) {
@@ -175,13 +177,23 @@ export function Signup({
         <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2 mt-7">
           Password
         </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={"••••••••"}
-          className={inputClass}
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={"••••••••"}
+            className={inputClass + " pr-12"}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] active:opacity-60"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
         <span className="text-[11px] text-[#D1D5DB] font-sans mt-2 ml-1">
           Min. 8 characters
         </span>

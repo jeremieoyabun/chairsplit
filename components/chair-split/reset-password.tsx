@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Eye, EyeOff } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 const inputClass =
@@ -11,6 +12,8 @@ export function ResetPassword({ onComplete }: { onComplete: () => void }) {
   const [confirm, setConfirm] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const handleSubmit = async () => {
     if (password.length < 8) { setError("Password must be at least 8 characters."); return }
@@ -42,25 +45,45 @@ export function ResetPassword({ onComplete }: { onComplete: () => void }) {
         <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2">
           New password
         </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={"••••••••"}
-          className={inputClass}
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={"••••••••"}
+            className={inputClass + " pr-12"}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] active:opacity-60"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
 
         <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2 mt-[18px]">
           Confirm password
         </label>
-        <input
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          placeholder={"••••••••"}
-          className={inputClass}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-        />
+        <div className="relative">
+          <input
+            type={showConfirm ? "text" : "password"}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder={"••••••••"}
+            className={inputClass + " pr-12"}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirm(!showConfirm)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] active:opacity-60"
+            tabIndex={-1}
+          >
+            {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
 
         {error && <p className="text-[13px] text-red-500 mt-3 text-center">{error}</p>}
 

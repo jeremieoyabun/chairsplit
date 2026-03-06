@@ -4,6 +4,8 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { UserRole } from "@/lib/types"
 
+import { Eye, EyeOff } from "lucide-react"
+
 const inputClass =
   "w-full h-[52px] bg-[#FFFFFF] rounded-[14px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[18px] text-[15px] text-[#111113] font-sans placeholder:text-[#9CA3AF] outline-none focus:border-[#1A1A1A] focus:border-2 focus:ring-4 focus:ring-[#1A1A1A]/[0.06] transition-all duration-150"
 
@@ -22,6 +24,7 @@ export function Login({
   const [resetEmail, setResetEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -198,14 +201,24 @@ export function Login({
         <label className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-2 mt-[18px]">
           Password
         </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={"••••••••"}
-          className={inputClass}
-          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={"••••••••"}
+            className={inputClass + " pr-12"}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] active:opacity-60"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
 
         {error && (
           <p className="text-[13px] text-red-500 mt-3 text-center">{error}</p>
