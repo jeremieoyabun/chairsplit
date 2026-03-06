@@ -43,14 +43,14 @@ export function Statements({ onBack }: { onBack: () => void }) {
       const [visitsRes, rulesRes] = await Promise.all([
         supabase
           .from("visits")
-          .select("total_amount, barber_id, visited_at, status")
+          .select("total_amount, product_amount, barber_id, visited_at, status")
           .eq("shop_id", shop.shopId)
           .eq("status", "validated")
           .gte("visited_at", sixMonthsAgo.toISOString())
           .order("visited_at", { ascending: false }),
         supabase
           .from("commission_rules")
-          .select("barber_id, rate")
+          .select("barber_id, rate, product_rate")
           .eq("shop_id", shop.shopId),
       ])
 
@@ -58,10 +58,12 @@ export function Statements({ onBack }: { onBack: () => void }) {
       const rules = rulesRes.data
 
       const ruleMap: Record<string, number> = {}
+      const productRuleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
-        if (r.barber_id) ruleMap[r.barber_id] = r.rate
+        if (r.barber_id) { ruleMap[r.barber_id] = r.rate; productRuleMap[r.barber_id] = r.product_rate ?? 0 }
       }
       const globalRate = rules?.find((r) => !r.barber_id)?.rate ?? 30
+      const globalProductRate = rules?.find((r) => !r.barber_id)?.product_rate ?? 0
 
       // Load expenses per month
       let expensesByMonth: Record<string, number> = {}
@@ -87,7 +89,10 @@ export function Statements({ onBack }: { onBack: () => void }) {
         if (!monthMap[key]) monthMap[key] = { ca: 0, commissions: 0 }
         monthMap[key].ca += v.total_amount ?? 0
         const rate = ruleMap[v.barber_id] ?? globalRate
-        monthMap[key].commissions += (v.total_amount ?? 0) * rate / 100
+        const pRate = productRuleMap[v.barber_id] ?? globalProductRate
+        const svcAmount = (v.total_amount ?? 0) - ((v as any).product_amount ?? 0)
+        const prodAmount = (v as any).product_amount ?? 0
+        monthMap[key].commissions += svcAmount * rate / 100 + prodAmount * pRate / 100
       }
 
       // Build sorted month list (last 6 months)

@@ -90,17 +90,25 @@ export function AddBarber({
       return
     }
 
-    // Send invitation email (best-effort)
-    fetch("/api/emails/invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        shopName: shopName || "the shop",
-        role,
-      }),
-    }).catch(() => {})
+    // Send invitation email
+    try {
+      const emailRes = await fetch("/api/emails/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          shopName: shopName || "the shop",
+          role,
+        }),
+      })
+      if (!emailRes.ok) {
+        const body = await emailRes.json().catch(() => ({}))
+        console.error("[AddBarber] email failed:", body)
+      }
+    } catch (e) {
+      console.error("[AddBarber] email fetch error:", e)
+    }
 
     setSent(true)
     setTimeout(() => { setSent(false); onBack() }, 1500)

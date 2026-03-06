@@ -20,6 +20,9 @@ ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive';
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
 ALTER TABLE visits ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'line';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE visits ADD COLUMN IF NOT EXISTS product_amount NUMERIC DEFAULT 0;
+ALTER TABLE visits ADD COLUMN IF NOT EXISTS product_commission_amount NUMERIC DEFAULT 0;
+ALTER TABLE commission_rules ADD COLUMN IF NOT EXISTS product_rate INTEGER DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -174,7 +177,8 @@ export async function GET(req: NextRequest) {
   if (!managementToken) {
     return NextResponse.json({
       error: "SUPABASE_MANAGEMENT_TOKEN not set",
-      instructions: "1. Go to https://supabase.com/dashboard/account/tokens\n2. Create a new token\n3. Add SUPABASE_MANAGEMENT_TOKEN=your_token to .env.local\n4. Restart dev server"
+      instructions: "Option 1: Add SUPABASE_MANAGEMENT_TOKEN to env vars (get it from https://supabase.com/dashboard/account/tokens)\nOption 2: Copy the SQL below and run it in Supabase Dashboard → SQL Editor",
+      sql: MIGRATION_SQL,
     }, { status: 500 })
   }
 

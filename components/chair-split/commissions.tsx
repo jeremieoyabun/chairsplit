@@ -10,6 +10,7 @@ type Rule = {
   barber_id: string | null
   service_id: string | null
   rate: number
+  product_rate: number
 }
 
 type Barber = { id: string; full_name: string }
@@ -37,6 +38,7 @@ const ChevronDown = () => (
 export function Commissions({ onBack }: { onBack: () => void }) {
   const [shopId, setShopId] = useState<string | null>(null)
   const [globalRate, setGlobalRate] = useState(30)
+  const [globalProductRate, setGlobalProductRate] = useState(0)
   const [globalRuleId, setGlobalRuleId] = useState<string | null>(null)
   const [specificRules, setSpecificRules] = useState<Rule[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
@@ -47,11 +49,13 @@ export function Commissions({ onBack }: { onBack: () => void }) {
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [ruleBarber, setRuleBarber] = useState("")
   const [ruleRate, setRuleRate] = useState("")
+  const [ruleProductRate, setRuleProductRate] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const [showEditGlobal, setShowEditGlobal] = useState(false)
   const [editGlobalRate, setEditGlobalRate] = useState("")
+  const [editGlobalProductRate, setEditGlobalProductRate] = useState("")
 
   const load = async () => {
     setLoading(true)
@@ -61,7 +65,7 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
     const supabase = createClient()
     const [rulesRes, barbersRes, servicesRes] = await Promise.all([
-      supabase.from("commission_rules").select("id, barber_id, service_id, rate").eq("shop_id", shop.shopId),
+      supabase.from("commission_rules").select("id, barber_id, service_id, rate, product_rate").eq("shop_id", shop.shopId),
       supabase.from("profiles").select("id, full_name").eq("shop_id", shop.shopId).eq("role", "barber"),
       supabase.from("services").select("id, name").eq("shop_id", shop.shopId),
     ])
@@ -78,6 +82,7 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
     const globalRule = rules.find((r) => !r.barber_id && !r.service_id)
     setGlobalRate(globalRule?.rate ?? 30)
+    setGlobalProductRate(globalRule?.product_rate ?? 0)
     setGlobalRuleId(globalRule?.id ?? null)
     setSpecificRules(rules.filter((r) => r.barber_id))
     setBarbers(allBarbers)
@@ -90,12 +95,14 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
   const handleSaveGlobalRate = async () => {
     const newRate = Number(editGlobalRate)
-    if (!newRate || newRate < 0 || newRate > 100 || !shopId) return
+    const newProductRate = Number(editGlobalProductRate) || 0
+    if (isNaN(newRate) || newRate < 0 || newRate > 100 || !shopId) return
+    if (newProductRate < 0 || newProductRate > 100) return
     const supabase = createClient()
     if (globalRuleId) {
-      await supabase.from("commission_rules").update({ rate: newRate }).eq("id", globalRuleId)
+      await supabase.from("commission_rules").update({ rate: newRate, product_rate: newProductRate }).eq("id", globalRuleId)
     } else {
-      await supabase.from("commission_rules").insert({ shop_id: shopId, barber_id: null, service_id: null, rate: newRate })
+      await supabase.from("commission_rules").insert({ shop_id: shopId, barber_id: null, service_id: null, rate: newRate, product_rate: newProductRate })
     }
     setShowEditGlobal(false)
     await load()
@@ -103,7 +110,9 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
   const handleAddRule = async () => {
     const rate = Number(ruleRate)
+    const productRate = Number(ruleProductRate) || 0
     if (!rate || rate < 0 || rate > 100) { setSaveError("Enter a valid rate (1–100)"); return }
+    if (productRate < 0 || productRate > 100) { setSaveError("Product rate must be 0–100"); return }
     if (!ruleBarber) { setSaveError("Select a barber"); return }
     if (!shopId) return
     setSaving(true)
@@ -114,11 +123,13 @@ export function Commissions({ onBack }: { onBack: () => void }) {
       barber_id: ruleBarber,
       service_id: null,
       rate,
+      product_rate: productRate,
     })
     if (error) { setSaveError(error.message); setSaving(false); return }
     setShowAddSheet(false)
     setRuleBarber("")
     setRuleRate("")
+    setRuleProductRate("")
     setSaving(false)
     await load()
   }
@@ -157,14 +168,19 @@ export function Commissions({ onBack }: { onBack: () => void }) {
           <span className="text-[52px] font-bold text-[#FFFFFF] leading-none block">
             {loading ? "—" : `${globalRate}%`}
           </span>
-          <span className="text-[14px] text-[#6B7280] block mt-2">Default rule</span>
-          <span className="text-[12px] text-[#9CA3AF] block mt-1">{"All barbers \u00B7 All services"}</span>
+          <span className="text-[14px] text-[#6B7280] block mt-2">Services commission</span>
+          {globalProductRate > 0 && (
+            <span className="text-[13px] text-[#9CA3AF] block mt-1.5">
+              Products: <span className="text-[#FFFFFF] font-semibold">{globalProductRate}%</span>
+            </span>
+          )}
+          <span className="text-[12px] text-[#9CA3AF] block mt-1">{"All barbers \u00B7 Default rule"}</span>
           <div className="inline-flex mt-3 px-3.5 py-1 rounded-full bg-[rgba(22,163,74,0.2)]">
             <span className="text-[11px] font-semibold text-[#16A34A]">Active</span>
           </div>
           <button
             type="button"
-            onClick={() => { setEditGlobalRate(String(globalRate)); setShowEditGlobal(true) }}
+            onClick={() => { setEditGlobalRate(String(globalRate)); setEditGlobalProductRate(String(globalProductRate)); setShowEditGlobal(true) }}
             className="absolute top-4 right-5 text-[12px] font-semibold text-[#6B7280] active:opacity-60"
           >
             Edit
@@ -222,7 +238,12 @@ export function Commissions({ onBack }: { onBack: () => void }) {
                       <span className="text-[15px] font-semibold text-[#111113]">{barberName}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[24px] font-bold text-[#111113]">{rule.rate}%</span>
+                      <div className="text-right">
+                        <span className="text-[24px] font-bold text-[#111113]">{rule.rate}%</span>
+                        {(rule.product_rate ?? 0) > 0 && (
+                          <span className="text-[11px] text-[#9CA3AF] block">prod. {rule.product_rate}%</span>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteRule(rule.id)}
@@ -266,16 +287,34 @@ export function Commissions({ onBack }: { onBack: () => void }) {
             <div className="flex justify-center mb-4">
               <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
             </div>
-            <h2 className="text-[18px] font-semibold text-[#111113] mb-5">Edit default rate</h2>
-            <div className="relative">
-              <input
-                type="number"
-                value={editGlobalRate}
-                onChange={(e) => setEditGlobalRate(e.target.value)}
-                placeholder="30"
-                className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 pr-10 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-[#9CA3AF]">%</span>
+            <h2 className="text-[18px] font-semibold text-[#111113] mb-5">Edit default rates</h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">SERVICES</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={editGlobalRate}
+                    onChange={(e) => setEditGlobalRate(e.target.value)}
+                    placeholder="30"
+                    className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 pr-10 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-[#9CA3AF]">%</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">PRODUCTS</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={editGlobalProductRate}
+                    onChange={(e) => setEditGlobalProductRate(e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 pr-10 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] focus:border-2"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-[#9CA3AF]">%</span>
+                </div>
+              </div>
             </div>
             <button
               type="button"
@@ -322,7 +361,7 @@ export function Commissions({ onBack }: { onBack: () => void }) {
 
               <div>
                 <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
-                  COMMISSION RATE
+                  SERVICES RATE
                 </label>
                 <div className="relative">
                   <input
@@ -330,6 +369,22 @@ export function Commissions({ onBack }: { onBack: () => void }) {
                     value={ruleRate}
                     onChange={(e) => setRuleRate(e.target.value)}
                     placeholder="30"
+                    className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 pr-10 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] transition-all"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-[#9CA3AF]">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#9CA3AF] block mb-2 ml-1">
+                  PRODUCTS RATE
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={ruleProductRate}
+                    onChange={(e) => setRuleProductRate(e.target.value)}
+                    placeholder="0"
                     className="w-full rounded-[14px] bg-[#FFFFFF] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-4 py-3.5 pr-10 text-[15px] text-[#111113] placeholder:text-[#D1D5DB] outline-none focus:border-[#1A1A1A] transition-all"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-[#9CA3AF]">%</span>

@@ -66,31 +66,34 @@ export function BarberStats() {
       // Parallel: commission rules + visits
       let visitsQuery = supabase
         .from("visits")
-        .select("total_amount, visited_at, visit_services(service_name, price)")
+        .select("total_amount, product_amount, visited_at, visit_services(service_name, price)")
         .eq("barber_id", shop.userId)
         .eq("status", "validated")
         .lt("visited_at", end)
       if (start) visitsQuery = visitsQuery.gte("visited_at", start)
 
       const [rulesRes, visitsRes] = await Promise.all([
-        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
+        supabase.from("commission_rules").select("barber_id, rate, product_rate").eq("shop_id", shop.shopId),
         visitsQuery,
       ])
 
       let rate = 30
+      let productRate = 0
       if (rulesRes.data) {
         const myRule = rulesRes.data.find((r) => r.barber_id === shop.userId)
         const globalRule = rulesRes.data.find((r) => !r.barber_id)
         rate = myRule?.rate ?? globalRule?.rate ?? 30
+        productRate = myRule?.product_rate ?? globalRule?.product_rate ?? 0
       }
 
-      const raw = visitsRes.data
       if (visitsRes.error) { console.error("[BarberStats] visits:", visitsRes.error.message); setLoading(false); return }
 
       const rows = (visitsRes.data ?? []) as unknown as DbVisit[]
 
       const totalRevenue = rows.reduce((s, v) => s + (v.total_amount ?? 0), 0)
-      const totalCommission = Math.round(totalRevenue * rate / 100)
+      const svcRevenue = rows.reduce((s, v) => s + (v.total_amount ?? 0) - ((v as any).product_amount ?? 0), 0)
+      const prodRevenue = rows.reduce((s, v) => s + ((v as any).product_amount ?? 0), 0)
+      const totalCommission = Math.round(svcRevenue * rate / 100) + Math.round(prodRevenue * productRate / 100)
       const avgTicket = rows.length > 0 ? Math.round(totalRevenue / rows.length) : 0
 
       setCommission(totalCommission)

@@ -6,49 +6,47 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pulling, setPulling] = useState(false)
   const [pullY, setPullY] = useState(0)
+
+  // All tracking via refs — zero re-renders during normal taps
   const startY = useRef(0)
-  const isPulling = useRef(false)
+  const activated = useRef(false)  // only true once user drags ≥ 10px down
+  const readyToRefresh = useRef(false)
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const el = scrollRef.current
     if (!el || el.scrollTop > 0) return
-    // Don't intercept taps on interactive elements — walk up from target to scroll root
-    let node: Element | null = e.target as Element
-    while (node && node !== el) {
-      const tag = node.tagName?.toLowerCase()
-      if (tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") return
-      // Check for role="button", clickable classes, or onclick attribute
-      if (node instanceof HTMLElement) {
-        if (node.getAttribute("role") === "button" || node.classList.contains("cursor-pointer") || node.onclick) return
-      }
-      // SVG elements don't have parentElement in some browsers — use parentNode
-      node = (node.parentElement ?? node.parentNode) as Element | null
-    }
     startY.current = e.touches[0].clientY
-    isPulling.current = true
+    activated.current = false
+    readyToRefresh.current = false
   }, [])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isPulling.current) return
     const el = scrollRef.current
-    if (!el || el.scrollTop > 0) { isPulling.current = false; setPullY(0); setPulling(false); return }
-    const dy = Math.max(0, e.touches[0].clientY - startY.current)
-    if (dy > 0) {
-      setPullY(Math.min(dy * 0.4, 60))
-      setPulling(dy > 80)
+    if (!el || el.scrollTop > 0) { activated.current = false; return }
+    const dy = e.touches[0].clientY - startY.current
+    // Only activate pull-to-refresh after 10px of deliberate downward drag
+    if (!activated.current) {
+      if (dy >= 10) activated.current = true
+      else return
     }
+    const clamped = Math.min(Math.max(0, dy) * 0.4, 60)
+    readyToRefresh.current = dy > 80
+    setPullY(clamped)
+    setPulling(dy > 80)
   }, [])
 
   const onTouchEnd = useCallback(() => {
-    if (!isPulling.current && pullY === 0) return // Don't trigger re-render for normal taps
-    if (pulling) {
+    // If pull was never activated (normal tap or horizontal swipe), do nothing — no re-render
+    if (!activated.current) return
+    if (readyToRefresh.current) {
       if (onRefresh) onRefresh()
       else window.location.reload()
     }
-    isPulling.current = false
+    activated.current = false
+    readyToRefresh.current = false
     setPullY(0)
     setPulling(false)
-  }, [pulling, pullY, onRefresh])
+  }, [onRefresh])
 
   return (
     // Mobile: full-screen, no chrome

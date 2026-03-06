@@ -82,11 +82,11 @@ export function Payslips({ onBack }: { onBack: () => void }) {
           .eq("role", "barber"),
         supabase
           .from("commission_rules")
-          .select("barber_id, rate")
+          .select("barber_id, rate, product_rate")
           .eq("shop_id", shop.shopId),
         supabase
           .from("visits")
-          .select("barber_id, total_amount")
+          .select("barber_id, total_amount, product_amount")
           .eq("shop_id", shop.shopId)
           .eq("status", "validated")
           .gte("visited_at", start)
@@ -98,24 +98,29 @@ export function Payslips({ onBack }: { onBack: () => void }) {
 
       const rules = rulesRes.data
       const ruleMap: Record<string, number> = {}
+      const productRuleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
-        if (r.barber_id) ruleMap[r.barber_id] = r.rate
+        if (r.barber_id) { ruleMap[r.barber_id] = r.rate; productRuleMap[r.barber_id] = r.product_rate ?? 0 }
       }
       const globalRate = rules?.find(r => !r.barber_id)?.rate ?? 30
+      const globalProductRate = rules?.find(r => !r.barber_id)?.product_rate ?? 0
 
       const visits = visitsRes.data
 
       // Aggregate per barber
-      const statsMap: Record<string, { revenue: number; visits: number }> = {}
+      const statsMap: Record<string, { revenue: number; productRevenue: number; visits: number }> = {}
       for (const v of visits ?? []) {
-        if (!statsMap[v.barber_id]) statsMap[v.barber_id] = { revenue: 0, visits: 0 }
+        if (!statsMap[v.barber_id]) statsMap[v.barber_id] = { revenue: 0, productRevenue: 0, visits: 0 }
         statsMap[v.barber_id].revenue += v.total_amount ?? 0
+        statsMap[v.barber_id].productRevenue += (v as any).product_amount ?? 0
         statsMap[v.barber_id].visits += 1
       }
 
       const rows: PayslipData[] = barbers.map(b => {
-        const stats = statsMap[b.id] ?? { revenue: 0, visits: 0 }
+        const stats = statsMap[b.id] ?? { revenue: 0, productRevenue: 0, visits: 0 }
         const rate = ruleMap[b.id] ?? globalRate
+        const pRate = productRuleMap[b.id] ?? globalProductRate
+        const svcRevenue = stats.revenue - stats.productRevenue
         return {
           barberId: b.id,
           name: b.full_name ?? "—",
@@ -123,7 +128,7 @@ export function Payslips({ onBack }: { onBack: () => void }) {
           color: colorFor(b.id),
           visits: stats.visits,
           revenue: stats.revenue,
-          commission: Math.round(stats.revenue * rate / 100),
+          commission: Math.round(svcRevenue * rate / 100) + Math.round(stats.productRevenue * pRate / 100),
           rate,
         }
       })

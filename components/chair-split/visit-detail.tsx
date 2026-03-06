@@ -19,6 +19,7 @@ type DbVisit = {
   barber_id: string
   client_id: string | null
   total_amount: number
+  product_amount: number
   status: string
   payment_method: string | null
   visited_at: string
@@ -51,6 +52,7 @@ export function VisitDetail({
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [commissionRate, setCommissionRate] = useState(30)
+  const [productCommissionRate, setProductCommissionRate] = useState(0)
 
   useEffect(() => {
     if (!visitId) return
@@ -64,7 +66,7 @@ export function VisitDetail({
       // 1. Fetch visit (no FK joins — they can fail silently with RLS)
       const { data: visitData, error: visitErr } = await supabase
         .from("visits")
-        .select("id, barber_id, total_amount, status, payment_method, visited_at, client_id")
+        .select("id, barber_id, total_amount, product_amount, status, payment_method, visited_at, client_id")
         .eq("id", visitId)
         .single()
 
@@ -78,7 +80,7 @@ export function VisitDetail({
         supabase.from("profiles").select("full_name, avatar_url").eq("id", visitData.barber_id).single(),
         supabase.from("visit_services").select("service_name, price").eq("visit_id", visitId),
         supabase.from("visit_products").select("product_name, price, quantity").eq("visit_id", visitId),
-        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
+        supabase.from("commission_rules").select("barber_id, rate, product_rate").eq("shop_id", shop.shopId),
       ])
 
 
@@ -97,6 +99,7 @@ export function VisitDetail({
       const barberRule = rulesRes.data?.find((r) => r.barber_id === vd.barber_id)
       const globalRule = rulesRes.data?.find((r) => !r.barber_id)
       setCommissionRate(barberRule?.rate ?? globalRule?.rate ?? 30)
+      setProductCommissionRate(barberRule?.product_rate ?? globalRule?.product_rate ?? 0)
       setLoading(false)
     }
     load()
@@ -107,8 +110,10 @@ export function VisitDetail({
     setActionLoading(true)
     setActionError(null)
     const supabase = createClient()
-    const commissionAmount = Math.round(visit.total_amount * commissionRate / 100)
-    const { error } = await supabase.from("visits").update({ status: "validated", commission_amount: commissionAmount }).eq("id", visit.id)
+    const serviceAmount = visit.total_amount - (visit.product_amount ?? 0)
+    const commissionAmount = Math.round(serviceAmount * commissionRate / 100)
+    const productCommissionAmount = Math.round((visit.product_amount ?? 0) * productCommissionRate / 100)
+    const { error } = await supabase.from("visits").update({ status: "validated", commission_amount: commissionAmount, product_commission_amount: productCommissionAmount }).eq("id", visit.id)
     if (error) { setActionError(error.message); setActionLoading(false); return }
     haptic("heavy")
     fireConfetti()
@@ -166,7 +171,10 @@ export function VisitDetail({
   const barberName = visit?.barberName ?? "Unknown"
   const clientName = visit?.clients?.name ?? "Walk-in"
   const amount = visit?.total_amount ?? 0
-  const commission = Math.round(amount * commissionRate / 100)
+  const serviceAmount = amount - (visit?.product_amount ?? 0)
+  const commission = Math.round(serviceAmount * commissionRate / 100)
+  const productCommission = Math.round((visit?.product_amount ?? 0) * productCommissionRate / 100)
+  const totalCommission = commission + productCommission
   const visitDate = visit?.visited_at ?? new Date().toISOString()
   const dateLabel = new Date(visitDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
   const timeLabel = new Date(visitDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
@@ -320,12 +328,30 @@ export function VisitDetail({
         <div className="mx-5 mt-5">
           <div className="rounded-[16px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-[18px] border-l-[3px] border-l-[#16A34A]">
             <div className="flex items-center justify-between">
-              <span className="text-[14px] text-[#6B7280]">Commission ({commissionRate}%)</span>
+              <span className="text-[14px] text-[#6B7280]">Services ({commissionRate}%)</span>
               <div className="flex items-baseline">
                 <span className="text-[20px] font-bold text-[#16A34A]">{fmt(commission)}</span>
                 <span className="text-[14px] text-[#16A34A] ml-0.5">{"\u0E3F"}</span>
               </div>
             </div>
+            {productCommission > 0 && (
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#F3F4F6]">
+                <span className="text-[14px] text-[#6B7280]">Products ({productCommissionRate}%)</span>
+                <div className="flex items-baseline">
+                  <span className="text-[17px] font-bold text-[#16A34A]">{fmt(productCommission)}</span>
+                  <span className="text-[12px] text-[#16A34A] ml-0.5">{"\u0E3F"}</span>
+                </div>
+              </div>
+            )}
+            {productCommission > 0 && (
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E5E7EB]">
+                <span className="text-[14px] font-semibold text-[#111113]">Total commission</span>
+                <div className="flex items-baseline">
+                  <span className="text-[20px] font-bold text-[#16A34A]">{fmt(totalCommission)}</span>
+                  <span className="text-[14px] text-[#16A34A] ml-0.5">{"\u0E3F"}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

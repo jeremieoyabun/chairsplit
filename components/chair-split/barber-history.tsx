@@ -88,7 +88,7 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
       // Parallel: profile + commission rules
       const [profileRes, rulesRes] = await Promise.all([
         supabase.from("profiles").select("full_name, shop_id").eq("id", shop.userId).single(),
-        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
+        supabase.from("commission_rules").select("barber_id, rate, product_rate").eq("shop_id", shop.shopId),
       ])
 
       const profile = profileRes.data
@@ -101,17 +101,19 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
       }
 
       let rate = 30
+      let productRate = 0
       if (rulesRes.data) {
         const myRule = rulesRes.data.find((r) => r.barber_id === shop.userId)
         const globalRule = rulesRes.data.find((r) => !r.barber_id)
         rate = myRule?.rate ?? globalRule?.rate ?? 30
+        productRate = myRule?.product_rate ?? globalRule?.product_rate ?? 0
       }
 
       const { start, end } = getRange(activeSegment)
 
       const { data: raw, error } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, client_id")
+        .select("id, total_amount, product_amount, status, visited_at, client_id")
         .eq("barber_id", shop.userId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -149,7 +151,9 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
 
       const validated = rows.filter((v) => v.status === "validated")
       const revenue = validated.reduce((s, v) => s + (v.total_amount ?? 0), 0)
-      const earnings = Math.round(revenue * rate / 100)
+      const svcRevenue = validated.reduce((s, v) => s + (v.total_amount ?? 0) - ((v as any).product_amount ?? 0), 0)
+      const prodRevenue = validated.reduce((s, v) => s + ((v as any).product_amount ?? 0), 0)
+      const earnings = Math.round(svcRevenue * rate / 100) + Math.round(prodRevenue * productRate / 100)
       setKpis({ visits: rows.length, revenue, earnings })
 
       const grouped: Record<string, DbVisit[]> = {}

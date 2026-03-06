@@ -111,31 +111,50 @@ export function BarberDetail({
       // Load commission rules
       const { data: rules } = await supabase
         .from("commission_rules")
-        .select("barber_id, rate")
+        .select("barber_id, rate, product_rate")
         .eq("shop_id", shopId)
 
       const barberRule = rules?.find((r) => r.barber_id === barberId)
       const globalRule = rules?.find((r) => !r.barber_id)
       const rate = barberRule?.rate ?? globalRule?.rate ?? 30
+      const productRate = barberRule?.product_rate ?? globalRule?.product_rate ?? 0
 
       const cRules: CommissionRule[] = []
       if (globalRule) {
         cRules.push({
-          service: "All services",
+          service: "Services",
           pillLabel: "default",
           pillBg: "#F3F4F6",
           pillText: "#6B7280",
           rate: `${globalRule.rate}%`,
         })
+        if ((globalRule.product_rate ?? 0) > 0) {
+          cRules.push({
+            service: "Products",
+            pillLabel: "default",
+            pillBg: "#F3F4F6",
+            pillText: "#6B7280",
+            rate: `${globalRule.product_rate}%`,
+          })
+        }
       }
       if (barberRule) {
         cRules.push({
-          service: "Custom rule",
+          service: "Services (custom)",
           pillLabel: "custom",
           pillBg: "#FEF9EE",
           pillText: "#D97706",
           rate: `${barberRule.rate}%`,
         })
+        if ((barberRule.product_rate ?? 0) > 0) {
+          cRules.push({
+            service: "Products (custom)",
+            pillLabel: "custom",
+            pillBg: "#FEF9EE",
+            pillText: "#D97706",
+            rate: `${barberRule.product_rate}%`,
+          })
+        }
       }
       if (cRules.length === 0) {
         cRules.push({
@@ -152,7 +171,7 @@ export function BarberDetail({
       const { start, end } = getRange(activeSegment)
       const { data: visits } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, visit_services(service_name)")
+        .select("id, total_amount, product_amount, status, visited_at, visit_services(service_name)")
         .eq("barber_id", barberId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -161,10 +180,12 @@ export function BarberDetail({
       const rows = (visits ?? []) as any[]
       const validated = rows.filter((v: any) => v.status === "validated")
       const revenue = validated.reduce((s: number, v: any) => s + (v.total_amount ?? 0), 0)
+      const serviceRevenue = validated.reduce((s: number, v: any) => s + (v.total_amount ?? 0) - (v.product_amount ?? 0), 0)
+      const productRevenue = validated.reduce((s: number, v: any) => s + (v.product_amount ?? 0), 0)
       setKpis({
         visits: rows.length,
         revenue,
-        commission: Math.round(revenue * rate / 100),
+        commission: Math.round(serviceRevenue * rate / 100) + Math.round(productRevenue * productRate / 100),
       })
 
       setRecentVisits(
@@ -202,7 +223,6 @@ export function BarberDetail({
         <button
           type="button"
           onClick={() => { haptic(); onBack() }}
-          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); haptic(); onBack() }}
           className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >

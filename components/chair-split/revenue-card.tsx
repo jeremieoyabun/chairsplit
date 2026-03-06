@@ -33,13 +33,13 @@ export function RevenueCard() {
       const [visitsRes, rulesRes] = await Promise.all([
         supabase
           .from("visits")
-          .select("total_amount, commission_amount, barber_id, status")
+          .select("total_amount, product_amount, commission_amount, product_commission_amount, barber_id, status")
           .eq("shop_id", shop.shopId)
           .gte("visited_at", start)
           .lt("visited_at", end),
         supabase
           .from("commission_rules")
-          .select("barber_id, rate")
+          .select("barber_id, rate, product_rate")
           .eq("shop_id", shop.shopId),
       ])
 
@@ -47,15 +47,28 @@ export function RevenueCard() {
 
       const rules = rulesRes.data ?? []
       const globalRate = rules.find((r) => !r.barber_id)?.rate ?? 0
+      const globalProductRate = rules.find((r) => !r.barber_id)?.product_rate ?? 0
 
       const all = visitsRes.data ?? []
       const validated = all.filter((v) => v.status === "validated")
       const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
       const totalCommissions = validated.reduce((s, v) => {
-        if (v.commission_amount > 0) return s + v.commission_amount
-        // Fallback: calculate from rules for old visits without commission_amount
-        const barberRate = rules.find((r) => r.barber_id === v.barber_id)?.rate ?? globalRate
-        return s + Math.round(v.total_amount * barberRate / 100)
+        // Service commission
+        let svcComm = 0
+        let prodComm = 0
+        if (v.commission_amount > 0) {
+          svcComm = v.commission_amount
+          prodComm = v.product_commission_amount ?? 0
+        } else {
+          // Fallback: calculate from rules for old visits
+          const barberRule = rules.find((r) => r.barber_id === v.barber_id)
+          const barberRate = barberRule?.rate ?? globalRate
+          const barberProductRate = barberRule?.product_rate ?? globalProductRate
+          const serviceAmount = v.total_amount - (v.product_amount ?? 0)
+          svcComm = Math.round(serviceAmount * barberRate / 100)
+          prodComm = Math.round((v.product_amount ?? 0) * barberProductRate / 100)
+        }
+        return s + svcComm + prodComm
       }, 0)
       const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
 

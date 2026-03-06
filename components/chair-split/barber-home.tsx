@@ -81,14 +81,14 @@ export function BarberHome({
     const [visitRes, rulesRes] = await Promise.all([
       supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, client_id")
+        .select("id, total_amount, product_amount, status, visited_at, client_id")
         .eq("barber_id", uid)
         .gte("visited_at", start)
         .lt("visited_at", end)
         .order("visited_at", { ascending: true }),
       supabase
         .from("commission_rules")
-        .select("barber_id, rate")
+        .select("barber_id, rate, product_rate")
         .eq("shop_id", shopId),
     ])
 
@@ -98,6 +98,7 @@ export function BarberHome({
     const myRule = rulesRes.data?.find((r) => r.barber_id === uid)
     const globalRule = rulesRes.data?.find((r) => !r.barber_id)
     const rate = myRule?.rate ?? globalRule?.rate ?? 30
+    const productRate = myRule?.product_rate ?? globalRule?.product_rate ?? 0
     commissionRateRef.current = rate
 
     const rawVisits = visitRes.data ?? []
@@ -126,7 +127,9 @@ export function BarberHome({
     const rows = rawVisits as unknown as DbVisit[]
     const validated = rows.filter((v) => v.status === "validated")
     const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
-    const totalCommission = Math.round(totalRevenue * rate / 100)
+    const serviceRevenue = validated.reduce((s, v) => s + v.total_amount - ((v as any).product_amount ?? 0), 0)
+    const productRevenue = validated.reduce((s, v) => s + ((v as any).product_amount ?? 0), 0)
+    const totalCommission = Math.round(serviceRevenue * rate / 100) + Math.round(productRevenue * productRate / 100)
     const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
 
     setRevenue(totalRevenue)

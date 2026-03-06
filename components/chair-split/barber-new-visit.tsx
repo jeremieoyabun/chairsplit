@@ -172,15 +172,17 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
 
     const supabase = createClient()
 
-    // Fetch commission rate
+    // Fetch commission rates
     const { data: rules } = await supabase
       .from("commission_rules")
-      .select("barber_id, rate")
+      .select("barber_id, rate, product_rate")
       .eq("shop_id", shopId)
     const barberRule = rules?.find((r) => r.barber_id === barberId)
     const globalRule = rules?.find((r) => !r.barber_id)
     const rate = barberRule?.rate ?? globalRule?.rate ?? 0
-    const commissionAmount = Math.round(total * rate / 100)
+    const productRate = barberRule?.product_rate ?? globalRule?.product_rate ?? 0
+    const commissionAmount = Math.round(serviceTotal * rate / 100)
+    const productCommissionAmount = Math.round(productTotal * productRate / 100)
 
     // 1. Create visit as draft
     const { data: visit, error: visitErr } = await supabase
@@ -189,7 +191,9 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
         barber_id: barberId,
         shop_id: shopId,
         total_amount: total,
+        product_amount: productTotal,
         commission_amount: commissionAmount,
+        product_commission_amount: productCommissionAmount,
         status: "draft",
         payment_method: paymentMethod,
         visited_at: new Date().toISOString(),

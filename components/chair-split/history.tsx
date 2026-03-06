@@ -93,19 +93,21 @@ export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: st
       // Load commission rules for commission KPI
       const { data: rules } = await supabase
         .from("commission_rules")
-        .select("barber_id, rate")
+        .select("barber_id, rate, product_rate")
         .eq("shop_id", shop.shopId)
 
       const ruleMap: Record<string, number> = {}
+      const productRuleMap: Record<string, number> = {}
       for (const r of rules ?? []) {
-        if (r.barber_id) ruleMap[r.barber_id] = r.rate
+        if (r.barber_id) { ruleMap[r.barber_id] = r.rate; productRuleMap[r.barber_id] = r.product_rate ?? 0 }
       }
       const globalRate = rules?.find((r) => !r.barber_id)?.rate ?? 30
+      const globalProductRate = rules?.find((r) => !r.barber_id)?.product_rate ?? 0
 
       // Load visits (no FK joins — they fail silently with RLS)
       const { data: raw, error } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, barber_id, client_id")
+        .select("id, total_amount, product_amount, status, visited_at, barber_id, client_id")
         .eq("shop_id", shop.shopId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -155,7 +157,10 @@ export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: st
       const totalRevenue = validated.reduce((s, v) => s + (v.total_amount ?? 0), 0)
       const totalCommissions = validated.reduce((s, v) => {
         const rate = ruleMap[v.barber_id] ?? globalRate
-        return s + (v.total_amount ?? 0) * rate / 100
+        const pRate = productRuleMap[v.barber_id] ?? globalProductRate
+        const svcAmount = (v.total_amount ?? 0) - ((v as any).product_amount ?? 0)
+        const prodAmount = (v as any).product_amount ?? 0
+        return s + svcAmount * rate / 100 + prodAmount * pRate / 100
       }, 0)
       setKpis({ visits: rows.length, revenue: totalRevenue, commissions: totalCommissions })
 
