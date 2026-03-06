@@ -53,6 +53,18 @@ CREATE OR REPLACE FUNCTION auth_user_shop_id() RETURNS UUID AS $$
   SELECT shop_id FROM profiles WHERE id = auth.uid()
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Visits: shop members can read, insert, update, delete visits in their shop
+ALTER TABLE visits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "visits_shop_member" ON visits;
+CREATE POLICY "visits_shop_member" ON visits
+  FOR ALL USING (shop_id = auth_user_shop_id());
+
+-- Visit services: accessible if the parent visit is in the user's shop
+ALTER TABLE visit_services ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "visit_services_shop_member" ON visit_services;
+CREATE POLICY "visit_services_shop_member" ON visit_services
+  FOR ALL USING (visit_id IN (SELECT id FROM visits WHERE shop_id = auth_user_shop_id()));
+
 -- Allow users to see profiles of people in the same shop
 DROP POLICY IF EXISTS "profiles_same_shop" ON profiles;
 CREATE POLICY "profiles_same_shop" ON profiles

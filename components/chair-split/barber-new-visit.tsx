@@ -149,6 +149,7 @@ export function BarberNewVisit({ onBack }: { onBack: () => void }) {
       .insert({
         barber_id: barberId,
         shop_id: shopId,
+        total_amount: total,
         status: "draft",
         payment_method: paymentMethod,
         visited_at: new Date().toISOString(),

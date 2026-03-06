@@ -20,8 +20,8 @@ type DbVisit = {
   payment_method: string | null
   visited_at: string
   clients: { name: string } | null
-  barber: { full_name: string } | null
   visit_services: { service_name: string; price: number; icon: string | null }[]
+  barberName?: string
 }
 
 function fmt(n: number) {
@@ -61,7 +61,7 @@ export function VisitDetail({
       const [visitRes, rulesRes] = await Promise.all([
         supabase
           .from("visits")
-          .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), barber:profiles!barber_id(full_name), visit_services(service_name, price, icon)")
+          .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), visit_services(service_name, price, icon)")
           .eq("id", visitId)
           .single(),
         supabase
@@ -72,6 +72,15 @@ export function VisitDetail({
 
       if (visitRes.error || !visitRes.data) { setLoading(false); return }
       const vd = visitRes.data as unknown as DbVisit
+
+      // Fetch barber name separately (FK join may not exist)
+      const { data: barberProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", vd.barber_id)
+        .single()
+      vd.barberName = barberProfile?.full_name ?? undefined
+
       setVisit(vd)
 
       const barberRule = rulesRes.data?.find((r) => r.barber_id === vd.barber_id)
@@ -140,13 +149,13 @@ export function VisitDetail({
 
   const status = (visit?.status ?? initialStatus) as "validated" | "draft" | "cancelled"
   const isDraft = status === "draft"
-  const barberName = visit?.barber?.full_name ?? "Unknown"
+  const barberName = visit?.barberName ?? "Unknown"
   const clientName = visit?.clients?.name ?? "Walk-in"
   const amount = visit?.total_amount ?? 0
   const commission = Math.round(amount * commissionRate / 100)
   const visitDate = visit?.visited_at ?? new Date().toISOString()
-  const dateLabel = new Date(visitDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
-  const timeLabel = new Date(visitDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  const dateLabel = new Date(visitDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+  const timeLabel = new Date(visitDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
   const services = visit?.visit_services ?? []
 
   return (
@@ -162,7 +171,7 @@ export function VisitDetail({
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
         </button>
         <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-10">
-          {"D\u00E9tail visite"}
+          Visit detail
         </h1>
       </div>
 
@@ -189,7 +198,7 @@ export function VisitDetail({
                 isDraft ? "text-[#D97706]" : status === "cancelled" ? "text-[#DC2626]" : "text-[#16A34A]"
               }`}
             >
-              {isDraft ? "Brouillon" : status === "cancelled" ? "Annul\u00E9" : "Valid\u00E9"}
+              {isDraft ? "Draft" : status === "cancelled" ? "Cancelled" : "Validated"}
             </span>
           </div>
           <span className="mt-3 text-[13px] text-[#6B7280]">
@@ -214,7 +223,7 @@ export function VisitDetail({
             </div>
             <div className="min-w-0">
               <span className="text-[14px] font-semibold text-[#111113] block leading-tight truncate">{barberName}</span>
-              <span className="text-[11px] text-[#9CA3AF] block leading-tight">Barbier</span>
+              <span className="text-[11px] text-[#9CA3AF] block leading-tight">Barber</span>
             </div>
           </div>
         </div>
@@ -290,7 +299,7 @@ export function VisitDetail({
               disabled={actionLoading}
               className="w-full h-[56px] rounded-[14px] bg-[#1A1A1A] text-[#FFFFFF] text-[15px] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.18)] active:scale-[0.98] transition-transform disabled:opacity-50"
             >
-              {actionLoading ? "Processing\u2026" : "Valider cette visite"}
+              {actionLoading ? "Processing\u2026" : "Validate this visit"}
             </button>
             <button
               type="button"
@@ -298,7 +307,7 @@ export function VisitDetail({
               disabled={actionLoading}
               className="w-full text-center text-[14px] font-medium text-[#DC2626] mt-2 active:opacity-60 transition-opacity disabled:opacity-50"
             >
-              Supprimer le brouillon
+              Delete draft
             </button>
           </>
         ) : status === "validated" ? (
@@ -308,7 +317,7 @@ export function VisitDetail({
             disabled={actionLoading}
             className="w-full text-center text-[14px] font-medium text-[#DC2626] active:opacity-60 transition-opacity disabled:opacity-50"
           >
-            {actionLoading ? "Processing\u2026" : "Annuler cette visite"}
+            {actionLoading ? "Processing\u2026" : "Cancel this visit"}
           </button>
         ) : null}
       </div>
