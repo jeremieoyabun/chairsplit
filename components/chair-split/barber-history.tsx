@@ -9,8 +9,9 @@ type DbVisit = {
   total_amount: number
   status: string
   visited_at: string
-  clients: { name: string } | null
-  visit_services: { service_name: string }[]
+  client_id: string | null
+  clientName?: string
+  serviceNames?: string
 }
 
 type DisplayVisit = {
@@ -110,7 +111,7 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
 
       const { data: raw, error } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
+        .select("id, total_amount, status, visited_at, client_id")
         .eq("barber_id", shop.userId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -119,6 +120,32 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
       if (error) { console.error("[BarberHistory] visits:", error.message); setLoading(false); return }
 
       const rows = (raw ?? []) as unknown as DbVisit[]
+
+      // Batch-fetch client names and visit services separately
+      const clientIds = [...new Set(rows.map((v) => v.client_id).filter(Boolean))] as string[]
+      const visitIds = rows.map((v) => v.id)
+      const clientNames: Record<string, string> = {}
+      const visitServicesMap: Record<string, string[]> = {}
+
+      const batchPromises: PromiseLike<void>[] = []
+      if (clientIds.length > 0) {
+        batchPromises.push(
+          supabase.from("clients").select("id, name").in("id", clientIds)
+            .then(({ data }) => { for (const c of data ?? []) clientNames[c.id] = c.name })
+        )
+      }
+      if (visitIds.length > 0) {
+        batchPromises.push(
+          supabase.from("visit_services").select("visit_id, service_name").in("visit_id", visitIds)
+            .then(({ data }) => { for (const vs of data ?? []) { if (!visitServicesMap[vs.visit_id]) visitServicesMap[vs.visit_id] = []; visitServicesMap[vs.visit_id].push(vs.service_name) } })
+        )
+      }
+      await Promise.all(batchPromises)
+
+      for (const v of rows) {
+        v.clientName = clientNames[v.client_id ?? ""] ?? undefined
+        v.serviceNames = (visitServicesMap[v.id] ?? []).join(", ") || undefined
+      }
 
       const validated = rows.filter((v) => v.status === "validated")
       const revenue = validated.reduce((s, v) => s + (v.total_amount ?? 0), 0)
@@ -142,8 +169,8 @@ export function BarberHistory({ onVisitPress }: { onVisitPress?: (id: string) =>
           }).toUpperCase(),
           visits: visits.map((v) => ({
             id: v.id,
-            client: v.clients?.name ?? "Walk-in",
-            services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+            client: v.clientName ?? "Walk-in",
+            services: v.serviceNames ?? "—",
             amount: fmt(v.total_amount ?? 0),
             time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
             status: v.status as "validated" | "draft" | "cancelled",

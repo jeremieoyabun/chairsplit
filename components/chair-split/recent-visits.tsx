@@ -7,11 +7,12 @@ import { getShop } from "@/lib/get-shop"
 type DbVisit = {
   id: string
   barber_id: string
+  client_id: string | null
   total_amount: number
   status: string
   visited_at: string
-  clients: { name: string } | null
-  visit_services: { service_name: string }[]
+  clientName?: string
+  services?: string
 }
 
 type DisplayVisit = {
@@ -61,8 +62,8 @@ function toDisplay(rows: DbVisit[], barberNames: Record<string, string>): Displa
     return {
       id: v.id,
       initials: getInitials(barberName),
-      name: v.clients?.name ?? "Walk-in",
-      services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+      name: v.clientName ?? "Walk-in",
+      services: v.services ?? "—",
       amount: fmt(v.total_amount),
       time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       color: colorFor(barberName),
@@ -89,7 +90,7 @@ export function RecentVisits({
     const { start, end } = todayRange()
     const { data: raw, error } = await supabase
       .from("visits")
-      .select("id, barber_id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
+      .select("id, barber_id, client_id, total_amount, status, visited_at")
       .eq("shop_id", sid)
       .gte("visited_at", start)
       .lt("visited_at", end)
@@ -98,15 +99,39 @@ export function RecentVisits({
     if (error) { console.error("[RecentVisits]", error.message); return }
     const rows = (raw ?? []) as unknown as DbVisit[]
 
-    // Batch-fetch barber names
+    // Batch-fetch barber names, client names, visit services (all separate — FK joins fail with RLS)
     const barberIds = [...new Set(rows.map((v) => v.barber_id).filter(Boolean))]
+    const clientIds = [...new Set(rows.map((v) => v.client_id).filter(Boolean))] as string[]
+    const visitIds = rows.map((v) => v.id)
     const barberNames: Record<string, string> = {}
+    const clientNames: Record<string, string> = {}
+    const visitServicesMap: Record<string, string[]> = {}
+
+    const batchPromises: PromiseLike<void>[] = []
     if (barberIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", barberIds)
-      for (const p of profiles ?? []) barberNames[p.id] = p.full_name ?? "Unknown"
+      batchPromises.push(
+        supabase.from("profiles").select("id, full_name").in("id", barberIds)
+          .then(({ data }) => { for (const p of data ?? []) barberNames[p.id] = p.full_name ?? "Unknown" })
+      )
+    }
+    if (clientIds.length > 0) {
+      batchPromises.push(
+        supabase.from("clients").select("id, name").in("id", clientIds)
+          .then(({ data }) => { for (const c of data ?? []) clientNames[c.id] = c.name })
+      )
+    }
+    if (visitIds.length > 0) {
+      batchPromises.push(
+        supabase.from("visit_services").select("visit_id, service_name").in("visit_id", visitIds)
+          .then(({ data }) => { for (const vs of data ?? []) { if (!visitServicesMap[vs.visit_id]) visitServicesMap[vs.visit_id] = []; visitServicesMap[vs.visit_id].push(vs.service_name) } })
+      )
+    }
+    await Promise.all(batchPromises)
+
+    // Enrich rows
+    for (const v of rows) {
+      v.clientName = clientNames[v.client_id ?? ""] ?? undefined
+      v.services = (visitServicesMap[v.id] ?? []).join(", ") || undefined
     }
 
     setVisits(toDisplay(rows, barberNames))

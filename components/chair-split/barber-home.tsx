@@ -80,7 +80,7 @@ export function BarberHome({
     const [visitRes, rulesRes] = await Promise.all([
       supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, clients(name), visit_services(service_name)")
+        .select("id, total_amount, status, visited_at, client_id")
         .eq("barber_id", uid)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -99,7 +99,30 @@ export function BarberHome({
     const rate = myRule?.rate ?? globalRule?.rate ?? 30
     commissionRateRef.current = rate
 
-    const rows = (visitRes.data ?? []) as unknown as DbVisit[]
+    const rawVisits = visitRes.data ?? []
+
+    // Batch-fetch client names and visit services separately (FK joins fail with RLS)
+    const clientIds = [...new Set(rawVisits.map((v: any) => v.client_id).filter(Boolean))]
+    const visitIds = rawVisits.map((v: any) => v.id)
+    const clientNames: Record<string, string> = {}
+    const visitServicesMap: Record<string, string[]> = {}
+
+    const batchPromises: PromiseLike<void>[] = []
+    if (clientIds.length > 0) {
+      batchPromises.push(
+        supabase.from("clients").select("id, name").in("id", clientIds)
+          .then(({ data }) => { for (const c of data ?? []) clientNames[c.id] = c.name })
+      )
+    }
+    if (visitIds.length > 0) {
+      batchPromises.push(
+        supabase.from("visit_services").select("visit_id, service_name").in("visit_id", visitIds)
+          .then(({ data }) => { for (const vs of data ?? []) { if (!visitServicesMap[vs.visit_id]) visitServicesMap[vs.visit_id] = []; visitServicesMap[vs.visit_id].push(vs.service_name) } })
+      )
+    }
+    await Promise.all(batchPromises)
+
+    const rows = rawVisits as unknown as DbVisit[]
     const validated = rows.filter((v) => v.status === "validated")
     const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
     const totalCommission = Math.round(totalRevenue * rate / 100)
@@ -116,8 +139,8 @@ export function BarberHome({
         .filter((v) => v.status !== "cancelled")
         .map((v) => ({
           id: v.id,
-          client: v.clients?.name ?? "Walk-in",
-          services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+          client: clientNames[(v as any).client_id] ?? "Walk-in",
+          services: (visitServicesMap[v.id] ?? []).join(", ") || "—",
           amount: fmt(v.total_amount),
           time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
           status: v.status as "validated" | "draft",

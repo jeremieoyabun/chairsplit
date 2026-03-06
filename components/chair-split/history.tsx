@@ -10,8 +10,9 @@ type DbVisit = {
   status: string
   visited_at: string
   barber_id: string
-  clients: { name: string } | null
-  visit_services: { service_name: string }[]
+  client_id: string | null
+  clientName?: string
+  serviceNames?: string
 }
 
 type DisplayVisit = {
@@ -101,10 +102,10 @@ export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: st
       }
       const globalRate = rules?.find((r) => !r.barber_id)?.rate ?? 30
 
-      // Load visits
+      // Load visits (no FK joins — they fail silently with RLS)
       const { data: raw, error } = await supabase
         .from("visits")
-        .select("id, total_amount, status, visited_at, barber_id, clients(name), visit_services(service_name)")
+        .select("id, total_amount, status, visited_at, barber_id, client_id")
         .eq("shop_id", shop.shopId)
         .gte("visited_at", start)
         .lt("visited_at", end)
@@ -114,15 +115,39 @@ export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: st
 
       const rows = (raw ?? []) as unknown as DbVisit[]
 
-      // Batch-fetch barber names
+      // Batch-fetch barber names, client names, visit services
       const barberIds = [...new Set(rows.map((v) => v.barber_id).filter(Boolean))]
+      const clientIds = [...new Set(rows.map((v) => v.client_id).filter(Boolean))] as string[]
+      const visitIds = rows.map((v) => v.id)
       const barberNames: Record<string, string> = {}
+      const clientNames: Record<string, string> = {}
+      const visitServicesMap: Record<string, string[]> = {}
+
+      const batchPromises: PromiseLike<void>[] = []
       if (barberIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", barberIds)
-        for (const p of profiles ?? []) barberNames[p.id] = p.full_name ?? "Unknown"
+        batchPromises.push(
+          supabase.from("profiles").select("id, full_name").in("id", barberIds)
+            .then(({ data }) => { for (const p of data ?? []) barberNames[p.id] = p.full_name ?? "Unknown" })
+        )
+      }
+      if (clientIds.length > 0) {
+        batchPromises.push(
+          supabase.from("clients").select("id, name").in("id", clientIds)
+            .then(({ data }) => { for (const c of data ?? []) clientNames[c.id] = c.name })
+        )
+      }
+      if (visitIds.length > 0) {
+        batchPromises.push(
+          supabase.from("visit_services").select("visit_id, service_name").in("visit_id", visitIds)
+            .then(({ data }) => { for (const vs of data ?? []) { if (!visitServicesMap[vs.visit_id]) visitServicesMap[vs.visit_id] = []; visitServicesMap[vs.visit_id].push(vs.service_name) } })
+        )
+      }
+      await Promise.all(batchPromises)
+
+      // Enrich rows
+      for (const v of rows) {
+        v.clientName = clientNames[v.client_id ?? ""] ?? undefined
+        v.serviceNames = (visitServicesMap[v.id] ?? []).join(", ") || undefined
       }
 
       // KPIs — revenue and commissions from validated only
@@ -155,8 +180,8 @@ export function History({ onVisitPress, onDraftPress }: { onVisitPress?: (id: st
             return {
               id: v.id,
               initials: getInitials(barberName),
-              name: v.clients?.name ?? "Walk-in",
-              services: v.visit_services.map((s) => s.service_name).join(", ") || "—",
+              name: v.clientName ?? "Walk-in",
+              services: v.serviceNames ?? "—",
               amount: fmt(v.total_amount ?? 0),
               time: new Date(v.visited_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
               color: colorFor(barberName),

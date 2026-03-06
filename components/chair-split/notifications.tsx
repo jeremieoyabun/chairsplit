@@ -65,27 +65,37 @@ export function Notifications({ onBack }: { onBack: () => void }) {
       const supabase = createClient()
       const { data: raw } = await supabase
         .from("visits")
-        .select("id, barber_id, total_amount, status, visited_at, clients(name)")
+        .select("id, barber_id, client_id, total_amount, status, visited_at")
         .eq("shop_id", shop.shopId)
         .order("visited_at", { ascending: false })
         .limit(30)
 
       const rows = (raw ?? []) as any[]
 
-      // Batch-fetch barber names
+      // Batch-fetch barber names and client names separately (FK joins fail with RLS)
       const barberIds = [...new Set(rows.map((v: any) => v.barber_id).filter(Boolean))]
+      const clientIds = [...new Set(rows.map((v: any) => v.client_id).filter(Boolean))]
       const barberNameMap: Record<string, string> = {}
+      const clientNameMap: Record<string, string> = {}
+
+      const batchPromises: PromiseLike<void>[] = []
       if (barberIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", barberIds)
-        for (const p of profiles ?? []) barberNameMap[p.id] = p.full_name ?? "A barber"
+        batchPromises.push(
+          supabase.from("profiles").select("id, full_name").in("id", barberIds)
+            .then(({ data }) => { for (const p of data ?? []) barberNameMap[p.id] = p.full_name ?? "A barber" })
+        )
       }
+      if (clientIds.length > 0) {
+        batchPromises.push(
+          supabase.from("clients").select("id, name").in("id", clientIds)
+            .then(({ data }) => { for (const c of data ?? []) clientNameMap[c.id] = c.name })
+        )
+      }
+      await Promise.all(batchPromises)
 
       const notifs: NotifItem[] = rows.map((v: any) => {
         const barberName = barberNameMap[v.barber_id] ?? "A barber"
-        const clientName = (v.clients as { name: string } | null)?.name ?? "Walk-in"
+        const clientName = clientNameMap[v.client_id] ?? "Walk-in"
         const amtStr = fmt(v.total_amount ?? 0)
         const isValidated = v.status === "validated"
         const isCancelled = v.status === "cancelled"
