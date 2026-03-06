@@ -77,6 +77,7 @@ export function Team({
         .eq("shop_id", shopId)
         .eq("role", "barber")
 
+      console.log("[Team] barberProfiles:", JSON.stringify(barberProfiles))
       if (!barberProfiles?.length) { setLoading(false); return }
 
       // Load today's validated visits
