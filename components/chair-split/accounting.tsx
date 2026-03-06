@@ -64,13 +64,15 @@ export function Accounting({
       const totalRevenue = (visits ?? []).reduce((s, v) => s + (v.total_amount ?? 0), 0)
       setRevenue(totalRevenue)
 
-      // Expenses this month
+      // Expenses this month (monthly + one-time in range)
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0]
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0]
       const { data: expenses } = await supabase
         .from("expenses")
         .select("amount")
         .eq("shop_id", shop.shopId)
-        .gte("expense_date", start)
-        .lt("expense_date", end)
+        .or(`frequency.eq.monthly,and(frequency.eq.one-time,date.gte.${monthStart},date.lt.${monthEnd})`)
 
       const totalCharges = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
       setCharges(totalCharges)
