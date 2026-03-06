@@ -124,7 +124,7 @@ export function AddBarber({
             onClick={onBack}
             className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           >
-            <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+            <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
           </button>
           <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113]">Add barber</h1>
           <div className="w-10" />
@@ -163,7 +163,7 @@ export function AddBarber({
           className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
         </button>
         <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113]">
           Add barber

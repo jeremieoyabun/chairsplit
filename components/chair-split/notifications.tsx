@@ -139,7 +139,7 @@ export function Notifications({ onBack }: { onBack: () => void }) {
           className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform shrink-0"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
         </button>
         <h1 className="flex-1 text-[18px] font-bold text-[#111113] flex items-center gap-2">
           Notifications

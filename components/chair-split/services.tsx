@@ -78,7 +78,7 @@ export function Services({
           className="w-10 h-10 rounded-full flex items-center justify-center active:bg-[#F0F0F3] transition-colors"
           aria-label="Back"
         >
-          <ArrowLeft className="w-5 h-5 text-[#111113]" />
+          <ArrowLeft className="w-5 h-5 text-[#111113] pointer-events-none" />
         </button>
         <h1 className="text-[22px] font-bold text-[#111113] leading-tight">
           Settings

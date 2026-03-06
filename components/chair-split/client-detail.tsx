@@ -166,7 +166,7 @@ export function ClientDetail({ clientId, onBack }: { clientId: string | null; on
       <div className="flex flex-col min-h-full">
         <div className="flex items-center px-5 pt-4 pb-3">
           <button type="button" onClick={onBack} className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform">
-            <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+            <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
           </button>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -189,7 +189,7 @@ export function ClientDetail({ clientId, onBack }: { clientId: string | null; on
           className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" />
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
         </button>
         <h1 className="flex-1 text-center text-[18px] font-semibold text-[#111113] -ml-10">
           Client

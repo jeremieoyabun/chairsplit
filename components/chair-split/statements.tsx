@@ -128,7 +128,7 @@ export function Statements({ onBack }: { onBack: () => void }) {
           className="w-10 h-10 rounded-full bg-[#FFFFFF] shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex items-center justify-center active:scale-95 transition-transform"
           aria-label="Back"
         >
-          <ArrowLeft className="w-[18px] h-[18px] text-[#111113]" strokeWidth={2} />
+          <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" strokeWidth={2} />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-[#111113] mr-10">
           Monthly Statements
