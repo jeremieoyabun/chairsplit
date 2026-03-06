@@ -175,6 +175,16 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
     setError(null)
     const supabase = createClient()
 
+    // Fetch commission rate for this barber
+    const { data: rules } = await supabase
+      .from("commission_rules")
+      .select("barber_id, rate")
+      .eq("shop_id", shopId)
+    const barberRule = rules?.find((r) => r.barber_id === barber.id)
+    const globalRule = rules?.find((r) => !r.barber_id)
+    const rate = barberRule?.rate ?? globalRule?.rate ?? 0
+    const commissionAmount = Math.round(total * rate / 100)
+
     const { data: visitData, error: visitErr } = await supabase
       .from("visits")
       .insert({
@@ -182,6 +192,7 @@ export function NewVisit({ onBack, onConfirm }: { onBack: () => void; onConfirm?
         barber_id: barber.id,
         status: "validated",
         total_amount: total,
+        commission_amount: commissionAmount,
         payment_method: paymentMethod,
         visited_at: new Date().toISOString(),
         ...(selectedClient ? { client_id: selectedClient.id } : {}),

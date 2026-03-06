@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { getShop } from "@/lib/get-shop"
+import { haptic } from "@/lib/haptic"
 
 type RecentVisit = {
   id: string
@@ -181,7 +182,7 @@ export function BarberDetail({
     return (
       <div className="flex flex-col min-h-full">
         <div className="flex items-center px-5 pt-4 pb-3">
-          <button type="button" onClick={onBack} className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <button type="button" onClick={() => { haptic(); onBack() }} className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform">
             <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
           </button>
         </div>

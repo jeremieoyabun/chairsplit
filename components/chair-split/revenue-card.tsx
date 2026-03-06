@@ -30,19 +30,33 @@ export function RevenueCard() {
 
       const supabase = createClient()
       const { start, end } = todayRange()
-      const { data: raw, error } = await supabase
-        .from("visits")
-        .select("total_amount, commission_amount, status")
-        .eq("shop_id", shop.shopId)
-        .gte("visited_at", start)
-        .lt("visited_at", end)
+      const [visitsRes, rulesRes] = await Promise.all([
+        supabase
+          .from("visits")
+          .select("total_amount, commission_amount, barber_id, status")
+          .eq("shop_id", shop.shopId)
+          .gte("visited_at", start)
+          .lt("visited_at", end),
+        supabase
+          .from("commission_rules")
+          .select("barber_id, rate")
+          .eq("shop_id", shop.shopId),
+      ])
 
-      if (error) { console.error("[RevenueCard] visits:", error.message); setLoading(false); return }
+      if (visitsRes.error) { console.error("[RevenueCard] visits:", visitsRes.error.message); setLoading(false); return }
 
-      const all = raw ?? []
+      const rules = rulesRes.data ?? []
+      const globalRate = rules.find((r) => !r.barber_id)?.rate ?? 0
+
+      const all = visitsRes.data ?? []
       const validated = all.filter((v) => v.status === "validated")
       const totalRevenue = validated.reduce((s, v) => s + v.total_amount, 0)
-      const totalCommissions = validated.reduce((s, v) => s + v.commission_amount, 0)
+      const totalCommissions = validated.reduce((s, v) => {
+        if (v.commission_amount > 0) return s + v.commission_amount
+        // Fallback: calculate from rules for old visits without commission_amount
+        const barberRate = rules.find((r) => r.barber_id === v.barber_id)?.rate ?? globalRate
+        return s + Math.round(v.total_amount * barberRate / 100)
+      }, 0)
       const avgTkt = validated.length > 0 ? totalRevenue / validated.length : 0
 
       setRevenue(totalRevenue)

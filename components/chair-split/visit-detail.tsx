@@ -104,7 +104,8 @@ export function VisitDetail({
     setActionLoading(true)
     setActionError(null)
     const supabase = createClient()
-    const { error } = await supabase.from("visits").update({ status: "validated" }).eq("id", visit.id)
+    const commissionAmount = Math.round(visit.total_amount * commissionRate / 100)
+    const { error } = await supabase.from("visits").update({ status: "validated", commission_amount: commissionAmount }).eq("id", visit.id)
     if (error) { setActionError(error.message); setActionLoading(false); return }
     haptic("heavy")
     fireConfetti()
