@@ -48,12 +48,15 @@ DROP POLICY IF EXISTS "shop_insert_own" ON shops;
 CREATE POLICY "shop_insert_own" ON shops
   FOR INSERT WITH CHECK (true);
 
+-- Helper function to get current user's shop_id without RLS recursion
+CREATE OR REPLACE FUNCTION auth_user_shop_id() RETURNS UUID AS $$
+  SELECT shop_id FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 -- Allow users to see profiles of people in the same shop
 DROP POLICY IF EXISTS "profiles_same_shop" ON profiles;
 CREATE POLICY "profiles_same_shop" ON profiles
-  FOR SELECT USING (
-    shop_id IN (SELECT shop_id FROM profiles WHERE id = auth.uid())
-  );
+  FOR SELECT USING (shop_id = auth_user_shop_id());
 
 -- Allow users to update their own profile
 DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
