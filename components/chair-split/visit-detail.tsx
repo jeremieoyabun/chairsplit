@@ -21,7 +21,7 @@ type DbVisit = {
   payment_method: string | null
   visited_at: string
   clients: { name: string } | null
-  visit_services: { service_name: string; price: number; icon: string | null }[]
+  visit_services: { service_name: string; price: number }[]
   barberName?: string
   barberAvatarUrl?: string | null
 }
@@ -73,7 +73,7 @@ export function VisitDetail({
           ? supabase.from("clients").select("name").eq("id", visitData.client_id).single()
           : Promise.resolve({ data: null }),
         supabase.from("profiles").select("full_name, avatar_url").eq("id", visitData.barber_id).single(),
-        supabase.from("visit_services").select("service_name, price, icon").eq("visit_id", visitId),
+        supabase.from("visit_services").select("service_name, price").eq("visit_id", visitId),
         supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
 
@@ -272,7 +272,7 @@ export function VisitDetail({
                 className={`flex items-center justify-between px-[18px] py-4 ${idx < services.length - 1 ? "border-b border-[#F8F8FA]" : ""}`}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-[18px] leading-none">{service.icon ?? "\u2702\uFE0F"}</span>
+                  <span className="text-[18px] leading-none">{"\u2702\uFE0F"}</span>
                   <span className="text-[14px] font-medium text-[#111113]">{service.service_name}</span>
                 </div>
                 <div className="flex items-baseline">
