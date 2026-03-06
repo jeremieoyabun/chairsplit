@@ -77,8 +77,13 @@ export function VisitDetail({
         supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
 
-      console.log("[VisitDetail] servicesRes:", JSON.stringify(servicesRes))
-      console.log("[VisitDetail] barberRes:", JSON.stringify(barberRes))
+      console.log("[VisitDetail] ALL RESULTS", {
+        services: servicesRes.data?.length ?? 0,
+        servicesError: servicesRes.error?.message ?? "none",
+        servicesData: servicesRes.data,
+        barber: barberRes.data?.full_name,
+        visitId,
+      })
 
       const vd: DbVisit = {
         ...visitData,
