@@ -79,10 +79,12 @@ export function Profile({ onBack }: { onBack: () => void }) {
     const ext = file.name.split(".").pop() ?? "jpg"
     const path = `${userId}.${ext}`
 
-    const { error: uploadErr } = await supabase.storage
+    console.log("[Profile] uploading avatar:", path, file.type, file.size)
+    const { error: uploadErr, data: uploadData } = await supabase.storage
       .from("avatars")
       .upload(path, file, { upsert: true })
 
+    console.log("[Profile] upload result:", uploadErr?.message ?? "ok", uploadData)
     if (uploadErr) { setError(uploadErr.message); setUploading(false); return }
 
     const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path)
