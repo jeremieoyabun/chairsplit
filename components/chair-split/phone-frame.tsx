@@ -12,9 +12,16 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const el = scrollRef.current
     if (!el || el.scrollTop > 0) return
-    // Don't intercept taps on interactive elements (buttons, links, inputs)
-    const target = e.target as HTMLElement
-    if (target.closest("button, a, input, select, textarea, [role='button'], .cursor-pointer")) return
+    // Don't intercept taps on interactive elements — walk up manually to handle SVG elements
+    let node: Element | null = e.target as Element
+    while (node && node !== el) {
+      const tag = node.tagName?.toLowerCase()
+      if (tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") return
+      if (node instanceof HTMLElement) {
+        if (node.getAttribute("role") === "button" || node.classList.contains("cursor-pointer")) return
+      }
+      node = node.parentElement
+    }
     startY.current = e.touches[0].clientY
     isPulling.current = true
   }, [])
