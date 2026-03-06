@@ -15,6 +15,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 type DbVisit = {
   id: string
   barber_id: string
+  client_id: string | null
   total_amount: number
   status: string
   payment_method: string | null
@@ -55,29 +56,32 @@ export function VisitDetail({
       if (!shop) { setLoading(false); return }
 
       const supabase = createClient()
-      // Parallel: visit data + commission rules
-      const [visitRes, rulesRes] = await Promise.all([
-        supabase
-          .from("visits")
-          .select("id, barber_id, total_amount, status, payment_method, visited_at, clients(name), visit_services(service_name, price, icon)")
-          .eq("id", visitId)
-          .single(),
-        supabase
-          .from("commission_rules")
-          .select("barber_id, rate")
-          .eq("shop_id", shop.shopId),
+
+      // 1. Fetch visit (no FK joins — they can fail silently with RLS)
+      const { data: visitData, error: visitErr } = await supabase
+        .from("visits")
+        .select("id, barber_id, total_amount, status, payment_method, visited_at, client_id")
+        .eq("id", visitId)
+        .single()
+
+      if (visitErr || !visitData) { console.error("[VisitDetail] visit:", visitErr?.message); setLoading(false); return }
+
+      // 2. Parallel: client name, barber name, services, commission rules
+      const [clientRes, barberRes, servicesRes, rulesRes] = await Promise.all([
+        visitData.client_id
+          ? supabase.from("clients").select("name").eq("id", visitData.client_id).single()
+          : Promise.resolve({ data: null }),
+        supabase.from("profiles").select("full_name").eq("id", visitData.barber_id).single(),
+        supabase.from("visit_services").select("service_name, price, icon").eq("visit_id", visitId),
+        supabase.from("commission_rules").select("barber_id, rate").eq("shop_id", shop.shopId),
       ])
 
-      if (visitRes.error || !visitRes.data) { setLoading(false); return }
-      const vd = visitRes.data as unknown as DbVisit
-
-      // Fetch barber name separately (FK join may not exist)
-      const { data: barberProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", vd.barber_id)
-        .single()
-      vd.barberName = barberProfile?.full_name ?? undefined
+      const vd: DbVisit = {
+        ...visitData,
+        clients: clientRes.data ? { name: clientRes.data.name } : null,
+        visit_services: servicesRes.data ?? [],
+        barberName: barberRes.data?.full_name ?? undefined,
+      }
 
       setVisit(vd)
 

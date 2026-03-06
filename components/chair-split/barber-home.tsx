@@ -50,11 +50,13 @@ export function BarberHome({
   onNotificationsPress,
   onNewVisitPress,
   onViewAllPress,
+  onVisitPress,
 }: {
   onSettingsPress?: () => void
   onNotificationsPress?: () => void
   onNewVisitPress?: () => void
   onViewAllPress?: () => void
+  onVisitPress?: (id: string) => void
 }) {
   const [userId, setUserId] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
@@ -347,6 +349,7 @@ export function BarberHome({
               return (
                 <div
                   key={visit.id}
+                  onClick={() => onVisitPress?.(visit.id)}
                   className="flex items-center gap-3 rounded-[16px] bg-[#FFFFFF] px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] active:scale-[0.99] transition-transform cursor-pointer"
                 >
                   <div className="w-11 h-11 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0">

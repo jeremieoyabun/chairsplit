@@ -373,6 +373,7 @@ export default function Page() {
             onSettingsPress={() => setScreen("barber-settings")}
             onNewVisitPress={() => setScreen("barber-new-visit")}
             onViewAllPress={() => setScreen("barber-history")}
+            onVisitPress={(id) => { setSelectedVisitId(id); setVisitReturnTo("barber-home"); setScreen("visit-detail") }}
           />
           <BarberBottomNav {...barberNavProps} />
         </>
