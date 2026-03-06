@@ -12,15 +12,17 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const el = scrollRef.current
     if (!el || el.scrollTop > 0) return
-    // Don't intercept taps on interactive elements — walk up manually to handle SVG elements
+    // Don't intercept taps on interactive elements — walk up from target to scroll root
     let node: Element | null = e.target as Element
     while (node && node !== el) {
       const tag = node.tagName?.toLowerCase()
       if (tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") return
+      // Check for role="button", clickable classes, or onclick attribute
       if (node instanceof HTMLElement) {
-        if (node.getAttribute("role") === "button" || node.classList.contains("cursor-pointer")) return
+        if (node.getAttribute("role") === "button" || node.classList.contains("cursor-pointer") || node.onclick) return
       }
-      node = node.parentElement
+      // SVG elements don't have parentElement in some browsers — use parentNode
+      node = (node.parentElement ?? node.parentNode) as Element | null
     }
     startY.current = e.touches[0].clientY
     isPulling.current = true
@@ -38,6 +40,7 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
   }, [])
 
   const onTouchEnd = useCallback(() => {
+    if (!isPulling.current && pullY === 0) return // Don't trigger re-render for normal taps
     if (pulling) {
       if (onRefresh) onRefresh()
       else window.location.reload()
@@ -45,7 +48,7 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
     isPulling.current = false
     setPullY(0)
     setPulling(false)
-  }, [pulling, onRefresh])
+  }, [pulling, pullY, onRefresh])
 
   return (
     // Mobile: full-screen, no chrome
