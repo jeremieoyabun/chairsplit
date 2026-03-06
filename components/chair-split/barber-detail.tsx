@@ -205,7 +205,7 @@ export function BarberDetail({
     return (
       <div className="flex flex-col min-h-full">
         <div className="flex items-center px-5 pt-4 pb-3">
-          <button type="button" onClick={() => { haptic(); onBack() }} className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform">
+          <button type="button" onClick={() => { haptic(); onBack() }} onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); haptic(); onBack() }} className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform touch-manipulation">
             <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />
           </button>
         </div>
@@ -223,7 +223,8 @@ export function BarberDetail({
         <button
           type="button"
           onClick={() => { haptic(); onBack() }}
-          className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform"
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); haptic(); onBack() }}
+          className="w-10 h-10 rounded-full bg-[#FFFFFF] flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-95 transition-transform touch-manipulation"
           aria-label="Go back"
         >
           <ArrowLeft className="w-[18px] h-[18px] text-[#111113] pointer-events-none" />

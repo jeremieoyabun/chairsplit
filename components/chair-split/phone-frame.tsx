@@ -71,7 +71,7 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
         )}
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto overflow-x-hidden pb-24 scrollbar-hide"
+          className="h-full overflow-y-auto overflow-x-hidden pb-24 scrollbar-hide touch-manipulation"
           style={{ WebkitOverflowScrolling: "touch", transform: pullY > 0 ? `translateY(${pullY}px)` : undefined, transition: pullY === 0 ? "transform 0.2s" : "none" }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}

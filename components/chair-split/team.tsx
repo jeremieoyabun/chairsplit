@@ -218,7 +218,8 @@ export function Team({
               <div
                 key={barber.id}
                 onClick={() => onBarberPress?.(barber.id)}
-                className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 cursor-pointer active:scale-[0.99] transition-transform"
+                onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onBarberPress?.(barber.id) }}
+                className="rounded-[20px] bg-[#FFFFFF] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 cursor-pointer active:scale-[0.99] transition-transform touch-manipulation"
               >
                 <div className="flex items-center gap-3">
                   {barber.avatar_url ? (
