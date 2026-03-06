@@ -14,7 +14,7 @@ export function PhoneFrame({ children, onRefresh }: { children: ReactNode; onRef
     if (!el || el.scrollTop > 0) return
     // Don't intercept taps on interactive elements (buttons, links, inputs)
     const target = e.target as HTMLElement
-    if (target.closest("button, a, input, select, textarea, [role='button']")) return
+    if (target.closest("button, a, input, select, textarea, [role='button'], .cursor-pointer")) return
     startY.current = e.touches[0].clientY
     isPulling.current = true
   }, [])
