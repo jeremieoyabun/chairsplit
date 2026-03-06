@@ -48,6 +48,23 @@ DROP POLICY IF EXISTS "shop_insert_own" ON shops;
 CREATE POLICY "shop_insert_own" ON shops
   FOR INSERT WITH CHECK (true);
 
+-- Allow users to see profiles of people in the same shop
+DROP POLICY IF EXISTS "profiles_same_shop" ON profiles;
+CREATE POLICY "profiles_same_shop" ON profiles
+  FOR SELECT USING (
+    shop_id IN (SELECT shop_id FROM profiles WHERE id = auth.uid())
+  );
+
+-- Allow users to update their own profile
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+CREATE POLICY "profiles_update_own" ON profiles
+  FOR UPDATE USING (id = auth.uid());
+
+-- Allow insert for new signups (trigger creates profile)
+DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
+CREATE POLICY "profiles_insert_own" ON profiles
+  FOR INSERT WITH CHECK (id = auth.uid());
+
 CREATE TABLE IF NOT EXISTS invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
